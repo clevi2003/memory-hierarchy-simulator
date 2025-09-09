@@ -1,50 +1,55 @@
 from .cache import DataCache, L2Cache
+from .levels import MainMemoryLevel, CacheLevel
 from trace_parser import TraceParser
+from .policies import WriteThroughNoWriteAllocate, InclusivePolicy, WriteBackWriteAllocate
+from pprint import pprint
+from .access_results import AccessLine
 
 class MemoryHierarchySimulator:
     def __init__(self, config):
         self.config = config
         self.bits = self.config.bits
-        self.data_cache = DataCache(self.config)
-        # setup L2 cache
-        self.l2 = None
+        self.memory = MainMemoryLevel()
+        lower_for_next_level = self.memory
+        # setup for L2 cache if applicable
         if self.config.l2_enabled:
-            self.l2 = L2Cache(self.config)
+            if config.l2.policy:
+                l2_write_policy = WriteThroughNoWriteAllocate()
+            else:
+                l2_write_policy = WriteBackWriteAllocate()
+            self.l2 = CacheLevel("l2", L2Cache(config), l2_write_policy, InclusivePolicy(), lower_level=lower_for_next_level)
+            lower_for_next_level = self.l2
+        else:
+            lower_for_next_level = self.memory
+            self.l2 = None
+        #setup for data cache
+        if config.dc.policy:
+            dc_write_policy = WriteThroughNoWriteAllocate()
+        else:
+            dc_write_policy = WriteBackWriteAllocate()
+        self.dc = CacheLevel("dc", DataCache(config), dc_write_policy, InclusivePolicy(), lower_level=lower_for_next_level)
 
     def simulate(self, trace):
+        print("Virtual  Virt.  Page TLB    TLB TLB  PT   Phys        DC  DC          L2  L2")
+        print("Address  Page # Off  Tag    Ind Res. Res. Pg # DC Tag Ind Res. L2 Tag Ind Res.")
+        print("-------- ------ ---- ------ --- ---- ---- ---- ------ --- ---- ------ --- ----")
         for operation, address in TraceParser(trace):
-            self.access_memory(operation, address)
+            line = AccessLine(address)
+            self.dc.access(operation, address, line)
+            #print("-------- ------ ---- ------ --- ---- ---- ---- ------ --- ---- ------ --- ----")
+            print(line)
+            #line.pprint()
+        print("Simulation statistics")
         self.pprint_stats()
 
-
-    def read_access(self, address):
-        # check data cache first
-        dc_read = self.data_cache.probe("R", address)
-        if dc_read.hit:
-            return
-        # next check L2 if applicable
-        if self.l2:
-            l2_read = self.l2.probe("R", address)
-            # handle l2 miss
-            if not l2_read.hit:
-
-
-
-    def access_memory(self, operation, address):
-        if operation == 'R':
-            self.read_access(address)
-        elif operation == 'W':
-            return self.data_cache.write(address)
-        else:
-            raise ValueError(f"Unknown operation: {operation}")
-
     def get_stats(self):
-        stats = {"data_cache": self.data_cache.get_stats()}
+        stats = {"data_cache": self.dc.get_stats(),
+                 "main_memory": self.memory.get_stats()}
+        if self.l2:
+            stats["l2"] = self.l2.get_stats()
         return stats
 
     def pprint_stats(self):
         stats = self.get_stats()
-        print("Data Cache Stats:")
-        for stat, value in stats["data_cache"].items():
-            print(f"  {stat}: {value}")
+        pprint(stats)
 

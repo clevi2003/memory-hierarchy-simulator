@@ -1,12 +1,13 @@
 from collections import OrderedDict
 from operator import index
 
-from access_results import EvictedCacheEntry, AccessResult
+from .access_results import EvictedCacheEntry, AccessResult
 
 class CacheEntry:
-    def __init__(self, tag, index):
+    def __init__(self, tag, index, address):
         self.tag = tag
         self.index = index
+        self.address = address
         self.dirty = False
 
     def mark_dirty(self):
@@ -44,7 +45,8 @@ class Cache:
         offset = address[-self.offset_bits:]
         return int(tag, 2), int(index, 2), int(offset, 2)
 
-    def possibly_evict(self, index):
+    def possibly_evict(self, address):
+        tag, index, offset = self.parse_address(address)
         set_dict = self.sets[index]
         if len(set_dict) >= self.associativity:
             # evict the least recently used item (first item in ordered dict)
@@ -52,7 +54,7 @@ class Cache:
             self.evictions += 1
             if evicted.dirty:
                 self.write_backs += 1
-            return EvictedCacheEntry(evicted.tag, evicted.index, evicted.dirty)
+            return EvictedCacheEntry(evicted.tag, evicted.index, address, evicted.dirty)
         return None
 
 
@@ -73,8 +75,8 @@ class Cache:
 
     def back_fill(self, operation, address, dirty=False):
         tag, index, offset = self.parse_address(address)
-        evicted = self.possibly_evict(index)
-        cache_entry = CacheEntry(tag, index)
+        evicted = self.possibly_evict(address)
+        cache_entry = CacheEntry(tag, index, address)
         if dirty:
             cache_entry.mark_dirty()
         self.sets[index][tag] = cache_entry
@@ -83,6 +85,13 @@ class Cache:
 
     def invalidate(self, address):
         tag, index, offset = self.parse_address(address)
+        set_dict = self.sets[index]
+        if tag in set_dict:
+            set_dict.pop(tag)
+            return True
+        return False
+
+    def invalidate_by_tag_index(self, tag, index):
         set_dict = self.sets[index]
         if tag in set_dict:
             set_dict.pop(tag)
@@ -99,8 +108,8 @@ class Cache:
     def read_miss(self, address, tag, index, offset):
         self.read_misses += 1
         # possibly evict if cache is already full and put data into the cache
-        evicted = self.possibly_evict(index)
-        self.sets[index][tag] = CacheEntry(tag, index)
+        evicted = self.possibly_evict(address)
+        self.sets[index][tag] = CacheEntry(tag, index, address)
         return AccessResult(self.name, "R", address, False, tag, index, offset, allocated=True,
                             evicted_entry=evicted, wrote_back=bool(evicted and evicted.dirty), needs_lower_read=True)
 
@@ -130,8 +139,8 @@ class Cache:
         if self.policy:
             return AccessResult(self.name, "W", address, False, tag, index, offset, needs_lower_write=True)
         # write allocate and write back
-        evicted = self.possibly_evict(index)
-        cache_entry = CacheEntry(tag, index)
+        evicted = self.possibly_evict(address)
+        cache_entry = CacheEntry(tag, index, address)
         cache_entry.mark_dirty()
         write_to_set[tag] = cache_entry
         return AccessResult(self.name, "W", address, False, tag, index, offset, allocated=True,
