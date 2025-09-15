@@ -22,7 +22,7 @@ class Cache:
         self.tag_bits = tag_bits
         self.index_bits = index_bits
         self.offset_bits = offset_bits
-        self.total_bits = self.tag_bits + self.index_bits + self.offset_bits
+        self.expected_bits = self.tag_bits + self.index_bits + self.offset_bits
         self.sets = [OrderedDict() for _ in range(self.num_sets)]
         self.policy = policy
         self.line_size = line_size
@@ -37,6 +37,8 @@ class Cache:
         self.write_backs = 0
 
     def parse_address(self, address):
+        if len(address) < self.expected_bits:
+            address = address.zfill(self.expected_bits)
         # get first bits for the tag
         tag = address[:self.tag_bits]
         # get middle bits for index
@@ -54,7 +56,7 @@ class Cache:
             self.evictions += 1
             if evicted.dirty:
                 self.write_backs += 1
-            return EvictedCacheEntry(evicted.tag, evicted.index, address, evicted.dirty)
+            return EvictedCacheEntry(evicted.tag, evicted.index, evicted.address, evicted.dirty)
         return None
 
 
@@ -98,6 +100,18 @@ class Cache:
             return True
         return False
 
+    def invalidate_page(self, evicted_entry):
+        # invalidate all cache entries that map to this ppn
+        # a cache entry maps to this ppn if the top bits of its address match the ppn
+        ppn_bits = len(evicted_entry.ppn)
+        for set_dict in self.sets:
+            tags_to_invalidate = []
+            for tag, entry in set_dict.items():
+                entry_ppn = entry.address[:ppn_bits]
+                if entry_ppn == evicted_entry.ppn:
+                    tags_to_invalidate.append(tag)
+            for tag in tags_to_invalidate:
+                set_dict.pop(tag)
 
     # can't use read and write methods directly bc must coordinate with lower levels first
     def read_hit(self, address, tag, index, offset):

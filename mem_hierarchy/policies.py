@@ -53,8 +53,4 @@ class InclusionPolicy(ABC):
 class InclusivePolicy(InclusionPolicy):
     def on_lower_eviction(self, upper_cache, address):
         upper_cache.invalidate(address)
-    #def on_lower_eviction(self, upper_cache, evicted_entry=None):
-        # if not evicted_entry:
-        #     return
-        #upper_cache.invalidate_by_tag_index(evicted_entry.tag, evicted_entry.index)
 

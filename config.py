@@ -37,6 +37,7 @@ class BitCounts:
         # VM
         self.vpn_bits = 0
         self.page_offset_bits = 0
+        self.ppn_bits = 0
 
 class CacheConfig:
     def __init__(self, num_sets, associativity, line_size, policy, enabled=True):
@@ -74,7 +75,7 @@ class Config:
         self.pt = pt_cfg
         self.dc = dc_cfg
         self.l2 = l2_cfg if self.l2_enabled else None
-        self.address_bits = 32  # fixed at 32 bits
+        self.address_bits = 0  # fixed at 32 bits
         self.bits = BitCounts()
         self.validate()
         self.derive_bits()
@@ -242,9 +243,13 @@ class Config:
         if self.virtual_addresses:
             self.bits.page_offset_bits = safe_log_2(self.pt.page_size)
             self.bits.vpn_bits = safe_log_2(self.pt.n_virtual_pages)
+            self.bits.ppn_bits = safe_log_2(self.pt.n_physical_pages)
+            self.address_bits = safe_log_2(self.pt.n_virtual_pages) + safe_log_2(self.pt.page_size)
+
         else:
             self.bits.page_offset_bits = 0
             self.bits.vpn_bits = 0
+            self.address_bits = safe_log_2(self.pt.n_physical_pages) + safe_log_2(self.pt.page_size)
 
         # DTLB bits slice the VPN, not the full 32-bit VA
         if self.dtlb_enabled and self.virtual_addresses:

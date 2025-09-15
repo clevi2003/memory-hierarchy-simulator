@@ -7,6 +7,7 @@ def main():
 
 
     simulator = MemoryHierarchySimulator(mem_sim_config)
+    # simulator.simulate("trace_copy.dat")
     simulator.simulate("trace.dat")
 
 
