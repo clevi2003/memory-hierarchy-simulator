@@ -1,6 +1,6 @@
 from abc import abstractmethod, ABC
-from mem_hierarchy.mem_levels.data_structures.caches.cache import CacheEntry
-from mem_hierarchy.mem_levels.data_structures.access_results import AccessResult
+from mem_hierarchy.data_structures.caches.cache_core import CacheEntry
+from mem_hierarchy.data_structures.result_structures.access_results import AccessResult
 
 
 class WritePolicy(ABC):

@@ -1,11 +1,7 @@
-from mem_hierarchy.mem_levels.data_structures.caches.cache import DataCache, L2Cache
-from mem_hierarchy.mem_levels.levels import MainMemoryLevel, CacheLevel, PageTableLevel
 from trace_parser import TraceParser
-from mem_hierarchy.protocols.policies import WriteThroughNoWriteAllocate, InclusivePolicy, WriteBackWriteAllocate
 from pprint import pprint
-from mem_hierarchy.mem_levels.data_structures.access_results import AccessLine
-from mem_hierarchy.mem_levels.data_structures.page_table import PageTable
-from mem_hierarchy.protocols.invalidation_bus import InvalidationBus
+from data_structures import *
+from protocols import *
 
 class MemoryHierarchySimulator:
     def __init__(self, config):
@@ -21,7 +17,7 @@ class MemoryHierarchySimulator:
                 l2_write_policy = WriteThroughNoWriteAllocate()
             else:
                 l2_write_policy = WriteBackWriteAllocate()
-            self.l2 = CacheLevel("l2", L2Cache(config), l2_write_policy, InclusivePolicy(),
+            self.l2 = DataCacheLevel("l2", L2Cache(config), l2_write_policy, InclusivePolicy(),
                                  invalidation_bus=invalidation_bus, lower_level=lower_for_next_level)
             lower_for_next_level = self.l2
             self.top_level = self.l2
@@ -32,7 +28,7 @@ class MemoryHierarchySimulator:
             dc_write_policy = WriteThroughNoWriteAllocate()
         else:
             dc_write_policy = WriteBackWriteAllocate()
-        self.dc = CacheLevel("dc", DataCache(config), dc_write_policy, InclusivePolicy(),
+        self.dc = DataCacheLevel("dc", DCCache(config), dc_write_policy, InclusivePolicy(),
                                  invalidation_bus=invalidation_bus, lower_level=lower_for_next_level)
         lower_for_next_level = self.dc
         self.top_level = self.dc

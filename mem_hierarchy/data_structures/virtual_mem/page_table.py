@@ -1,4 +1,4 @@
-from mem_hierarchy.mem_levels.data_structures.access_results import EvictedPageTableEntry, TranslationResult
+from mem_hierarchy.data_structures.result_structures.access_results import EvictedPageTableEntry, TranslationResult
 
 class PageTable:
     def __init__(self, config):

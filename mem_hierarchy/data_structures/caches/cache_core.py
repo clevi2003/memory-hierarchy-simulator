@@ -1,20 +1,10 @@
 from collections import OrderedDict
 
-from mem_hierarchy.mem_levels.data_structures.access_results import EvictedCacheEntry, AccessResult
-
-class CacheEntry:
-    def __init__(self, tag, index, address):
-        self.tag = tag
-        self.index = index
-        self.address = address
-        self.dirty = False
-
-    def mark_dirty(self):
-        self.dirty = True
+from mem_hierarchy.data_structures.result_structures.access_results import EvictedCacheEntry, AccessResult
 
 
-class Cache:
-    def __init__(self, name, num_sets, associativity, tag_bits, index_bits, offset_bits, policy, line_size):
+class CacheCore:
+    def __init__(self, name, num_sets, associativity, tag_bits, index_bits, offset_bits=None, policy=None, line_size=None):
         self.name = name
         self.num_sets = num_sets
         self.associativity = associativity
@@ -74,16 +64,6 @@ class Cache:
         return AccessResult(self.name, operation, address, False, tag, index, offset,
                             needs_lower_read=operation=="R")
 
-    def back_fill(self, operation, address, dirty=False):
-        tag, index, offset = self.parse_address(address)
-        evicted = self.possibly_evict(address)
-        cache_entry = CacheEntry(tag, index, address)
-        if dirty:
-            cache_entry.mark_dirty()
-        self.sets[index][tag] = cache_entry
-        return AccessResult(self.name, operation, address, False, tag, index, offset, allocated=True,
-                            evicted_entry=evicted,wrote_back=(evicted.dirty if evicted else False))
-
     def invalidate(self, address):
         tag, index, offset = self.parse_address(address)
         set_dict = self.sets[index]
@@ -113,59 +93,59 @@ class Cache:
                 set_dict.pop(tag)
 
     # can't use read and write methods directly bc must coordinate with lower levels first
-    def read_hit(self, address, tag, index, offset):
-        self.read_hits += 1
-        self.get_update_mru(self.sets[index], tag)
-        return AccessResult(self.name, "R", address, True, tag, index, offset)
-
-    def read_miss(self, address, tag, index, offset):
-        self.read_misses += 1
-        # possibly evict if cache is already full and put data into the cache
-        evicted = self.possibly_evict(address)
-        self.sets[index][tag] = CacheEntry(tag, index, address)
-        return AccessResult(self.name, "R", address, False, tag, index, offset, allocated=True,
-                            evicted_entry=evicted, wrote_back=bool(evicted and evicted.dirty), needs_lower_read=True)
-
-    def read(self, address):
-        self.reads += 1
-        tag, index, offset = self.parse_address(address)
-        if tag in self.sets[index]:
-            return self.read_hit(address, tag, index, offset)
-        return self.read_miss(address, tag, index, offset)
-
-    def write_hit(self, address, tag, index, offset):
-        self.write_hits += 1
-        write_to_set = self.sets[index]
-        # no write allocate and write through
-        if self.policy:
-            self.get_update_mru(write_to_set, tag)
-            return AccessResult(self.name, "W", address, True, tag, index, offset, needs_lower_write=True)
-        # write allocate and write back
-        cache_entry = self.get_update_mru(write_to_set, tag)
-        cache_entry.mark_dirty()
-        return AccessResult(self.name, "W", address, True, tag, index, offset, needs_lower_write=False)
-
-    def write_miss(self, address, tag, index, offset):
-        self.write_misses += 1
-        write_to_set = self.sets[index]
-        # no write allocate and write through
-        if self.policy:
-            return AccessResult(self.name, "W", address, False, tag, index, offset, needs_lower_write=True)
-        # write allocate and write back
-        evicted = self.possibly_evict(address)
-        cache_entry = CacheEntry(tag, index, address)
-        cache_entry.mark_dirty()
-        write_to_set[tag] = cache_entry
-        return AccessResult(self.name, "W", address, False, tag, index, offset, allocated=True,
-                            evicted_entry=evicted, wrote_back=(evicted and evicted.dirty))
-
-    def write(self, address):
-        self.writes += 1
-        tag, index, offset = self.parse_address(address)
-        write_to_set = self.sets[index]
-        if tag in write_to_set:
-            return self.write_hit(address, tag, index, offset)
-        return self.write_miss(address, tag, index, offset)
+    # def read_hit(self, address, tag, index, offset):
+    #     self.read_hits += 1
+    #     self.get_update_mru(self.sets[index], tag)
+    #     return AccessResult(self.name, "R", address, True, tag, index, offset)
+    #
+    # def read_miss(self, address, tag, index, offset):
+    #     self.read_misses += 1
+    #     # possibly evict if cache is already full and put data into the cache
+    #     evicted = self.possibly_evict(address)
+    #     self.sets[index][tag] = CacheEntry(tag, index, address)
+    #     return AccessResult(self.name, "R", address, False, tag, index, offset, allocated=True,
+    #                         evicted_entry=evicted, wrote_back=bool(evicted and evicted.dirty), needs_lower_read=True)
+    #
+    # def read(self, address):
+    #     self.reads += 1
+    #     tag, index, offset = self.parse_address(address)
+    #     if tag in self.sets[index]:
+    #         return self.read_hit(address, tag, index, offset)
+    #     return self.read_miss(address, tag, index, offset)
+    #
+    # def write_hit(self, address, tag, index, offset):
+    #     self.write_hits += 1
+    #     write_to_set = self.sets[index]
+    #     # no write allocate and write through
+    #     if self.policy:
+    #         self.get_update_mru(write_to_set, tag)
+    #         return AccessResult(self.name, "W", address, True, tag, index, offset, needs_lower_write=True)
+    #     # write allocate and write back
+    #     cache_entry = self.get_update_mru(write_to_set, tag)
+    #     cache_entry.mark_dirty()
+    #     return AccessResult(self.name, "W", address, True, tag, index, offset, needs_lower_write=False)
+    #
+    # def write_miss(self, address, tag, index, offset):
+    #     self.write_misses += 1
+    #     write_to_set = self.sets[index]
+    #     # no write allocate and write through
+    #     if self.policy:
+    #         return AccessResult(self.name, "W", address, False, tag, index, offset, needs_lower_write=True)
+    #     # write allocate and write back
+    #     evicted = self.possibly_evict(address)
+    #     cache_entry = CacheEntry(tag, index, address)
+    #     cache_entry.mark_dirty()
+    #     write_to_set[tag] = cache_entry
+    #     return AccessResult(self.name, "W", address, False, tag, index, offset, allocated=True,
+    #                         evicted_entry=evicted, wrote_back=(evicted and evicted.dirty))
+    #
+    # def write(self, address):
+    #     self.writes += 1
+    #     tag, index, offset = self.parse_address(address)
+    #     write_to_set = self.sets[index]
+    #     if tag in write_to_set:
+    #         return self.write_hit(address, tag, index, offset)
+    #     return self.write_miss(address, tag, index, offset)
 
     def get_stats(self):
         stats = {"reads": self.reads,
@@ -181,7 +161,7 @@ class Cache:
         return stats
 
 
-class DataCache(Cache):
+class DataCache(CacheCore):
     def __init__(self, config):
         num_sets = config.dc.num_sets
         policy = config.dc.policy
@@ -190,9 +170,9 @@ class DataCache(Cache):
         tag_bits = config.bits.dc_tag_bits
         index_bits = config.bits.dc_index_bits
         offset_bits = config.bits.dc_offset_bits
-        super().__init__("DC", num_sets, associativity, tag_bits, index_bits, offset_bits, policy, line_size)
+        super().__init__("DC", num_sets, associativity, tag_bits, index_bits, offset_bits=offset_bits, policy=policy, line_size=line_size)
 
-class L2Cache(Cache):
+class L2Cache(CacheCore):
     def __init__(self, config):
         num_sets = config.l2.num_sets
         policy = config.l2.policy
@@ -201,7 +181,7 @@ class L2Cache(Cache):
         tag_bits = config.bits.l2_tag_bits
         index_bits = config.bits.l2_index_bits
         offset_bits = config.bits.l2_offset_bits
-        super().__init__("L2", num_sets, associativity, tag_bits, index_bits, offset_bits, policy, line_size)
+        super().__init__("L2", num_sets, associativity, tag_bits, index_bits, offset_bits=offset_bits, policy=policy, line_size=line_size)
 
 
 
