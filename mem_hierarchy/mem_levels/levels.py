@@ -1,4 +1,4 @@
-from .access_results import AccessResult
+from mem_hierarchy.mem_levels.data_structures.access_results import AccessResult
 from abc import abstractmethod, ABC
 
 class MemoryLevel(ABC):

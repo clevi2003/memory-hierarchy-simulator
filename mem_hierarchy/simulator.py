@@ -1,11 +1,11 @@
-from .cache import DataCache, L2Cache
-from .levels import MainMemoryLevel, CacheLevel, PageTableLevel
+from mem_hierarchy.mem_levels.data_structures.caches.cache import DataCache, L2Cache
+from mem_hierarchy.mem_levels.levels import MainMemoryLevel, CacheLevel, PageTableLevel
 from trace_parser import TraceParser
-from .policies import WriteThroughNoWriteAllocate, InclusivePolicy, WriteBackWriteAllocate
+from mem_hierarchy.protocols.policies import WriteThroughNoWriteAllocate, InclusivePolicy, WriteBackWriteAllocate
 from pprint import pprint
-from .access_results import AccessLine
-from .page_table import PageTable
-from .invalidation_bus import InvalidationBus
+from mem_hierarchy.mem_levels.data_structures.access_results import AccessLine
+from mem_hierarchy.mem_levels.data_structures.page_table import PageTable
+from mem_hierarchy.protocols.invalidation_bus import InvalidationBus
 
 class MemoryHierarchySimulator:
     def __init__(self, config):

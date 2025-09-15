@@ -1,7 +1,6 @@
 from collections import OrderedDict
-from operator import index
 
-from .access_results import EvictedCacheEntry, AccessResult
+from mem_hierarchy.mem_levels.data_structures.access_results import EvictedCacheEntry, AccessResult
 
 class CacheEntry:
     def __init__(self, tag, index, address):
@@ -191,7 +190,6 @@ class DataCache(Cache):
         tag_bits = config.bits.dc_tag_bits
         index_bits = config.bits.dc_index_bits
         offset_bits = config.bits.dc_offset_bits
-        self.name = "DC"
         super().__init__("DC", num_sets, associativity, tag_bits, index_bits, offset_bits, policy, line_size)
 
 class L2Cache(Cache):

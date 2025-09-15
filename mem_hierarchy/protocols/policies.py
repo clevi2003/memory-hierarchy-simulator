@@ -1,6 +1,7 @@
 from abc import abstractmethod, ABC
-from .cache import CacheEntry
-from .access_results import AccessResult, EvictedCacheEntry
+from mem_hierarchy.mem_levels.data_structures.caches.cache import CacheEntry
+from mem_hierarchy.mem_levels.data_structures.access_results import AccessResult
+
 
 class WritePolicy(ABC):
     @abstractmethod
