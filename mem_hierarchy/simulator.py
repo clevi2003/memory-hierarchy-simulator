@@ -1,7 +1,16 @@
-from trace_parser import TraceParser
 from pprint import pprint
-from data_structures import *
-from protocols import *
+from trace_parser import TraceParser  # if you move it under package
+from mem_hierarchy.data_structures.caches.data_cache import DCCache, L2Cache
+#from mem_hierarchy.data_structures.caches.translation_cache import DTLB
+from mem_hierarchy.data_structures.mem_levels.data_cache_level import DataCacheLevel
+from mem_hierarchy.data_structures.mem_levels.main_mem_level import MainMemoryLevel
+from mem_hierarchy.data_structures.mem_levels.page_table_level import PageTableLevel
+from mem_hierarchy.data_structures.virtual_mem.page_table import PageTable
+from mem_hierarchy.data_structures.result_structures.access_results import (
+    AccessResult, TranslationResult, EvictedCacheEntry, EvictedPageTableEntry, AccessLine
+)
+from mem_hierarchy.protocols.policies import WriteBackWriteAllocate, WriteThroughNoWriteAllocate, InclusivePolicy
+from mem_hierarchy.protocols.invalidation_bus import InvalidationBus
 
 class MemoryHierarchySimulator:
     def __init__(self, config):

@@ -1,7 +1,5 @@
 from collections import OrderedDict
-
 from mem_hierarchy.data_structures.result_structures.access_results import EvictedCacheEntry, AccessResult
-
 
 class CacheCore:
     def __init__(self, name, num_sets, associativity, tag_bits, index_bits, offset_bits=None, policy=None, line_size=None):

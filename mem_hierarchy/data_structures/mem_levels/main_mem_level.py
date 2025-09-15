@@ -1,4 +1,5 @@
 from .level_core import MemoryLevel
+from ..result_structures import AccessResult
 
 class MainMemoryLevel(MemoryLevel):
     def __init__(self):

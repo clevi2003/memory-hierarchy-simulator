@@ -12,7 +12,7 @@ class CacheEntry:
         self.dirty = True
 
 class DataCache(CacheCore):
-    def __init__(self, num_sets, associativity, tag_bits, index_bits, offset_bits, policy, line_size, name="Data Cache"):
+    def __init__(self, name, num_sets, associativity, tag_bits, index_bits, offset_bits, policy, line_size):
         super().__init__(name,
                          num_sets,
                          associativity,
