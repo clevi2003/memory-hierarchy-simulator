@@ -314,6 +314,7 @@ class Config:
             print_str += "The addresses read in are virtual addresses."
         else:
             print_str += "The addresses read in are physical addresses."
+        print_str += "\n"
         return print_str
 
 

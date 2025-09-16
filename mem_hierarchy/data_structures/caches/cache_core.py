@@ -8,6 +8,7 @@ class CacheCore:
         self.associativity = associativity
         self.tag_bits = tag_bits
         self.index_bits = index_bits
+        offset_bits = offset_bits if offset_bits else 0
         self.offset_bits = offset_bits
         self.expected_bits = self.tag_bits + self.index_bits + self.offset_bits
         self.sets = [OrderedDict() for _ in range(self.num_sets)]
@@ -24,6 +25,7 @@ class CacheCore:
         self.write_backs = 0
 
     def parse_address(self, address):
+        #print(address, self.name)
         if len(address) < self.expected_bits:
             address = address.zfill(self.expected_bits)
         # get first bits for the tag
@@ -33,19 +35,6 @@ class CacheCore:
         # get final bits for offset
         offset = address[-self.offset_bits:]
         return int(tag, 2), int(index, 2), int(offset, 2)
-
-    def possibly_evict(self, address):
-        tag, index, offset = self.parse_address(address)
-        set_dict = self.sets[index]
-        if len(set_dict) >= self.associativity:
-            # evict the least recently used item (first item in ordered dict)
-            lru_info, evicted = set_dict.popitem(last=False)
-            self.evictions += 1
-            if evicted.dirty:
-                self.write_backs += 1
-            return EvictedCacheEntry(evicted.tag, evicted.index, evicted.address, evicted.dirty)
-        return None
-
 
     @staticmethod
     def get_update_mru(set_dict, tag):
@@ -145,7 +134,7 @@ class CacheCore:
     #         return self.write_hit(address, tag, index, offset)
     #     return self.write_miss(address, tag, index, offset)
 
-    def get_stats(self):
+    def get_stats_old(self):
         stats = {"reads": self.reads,
                  "writes": self.writes,
                  "read_hits": self.read_hits,
@@ -156,6 +145,14 @@ class CacheCore:
                  "write_hit_rate": self.write_hits / self.writes if self.writes > 0 else 0,
                  "evictions": self.evictions,
                  "write backs": self.write_backs,}
+        return stats
+
+    def get_stats(self):
+        hits = self.read_hits + self.write_hits
+        misses = self.read_misses + self.write_misses
+        stats = {"hits": hits,
+                 "misses": misses,
+                 "hit rate": hits / (hits + misses) if (hits + misses) > 0 else 0}
         return stats
 
 

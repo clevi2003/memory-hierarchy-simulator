@@ -1,5 +1,8 @@
+from pandas.io.sas.sas_constants import page_count_offset
+
+
 class AccessResult:
-    def __init__(self, level, operation, address, hit, tag, index, offset, allocated=False, evicted_entry=None,
+    def __init__(self, level, operation, address, hit, tag, index, offset, page_offset=None, ppn=None, vpn=None, allocated=False, evicted_entry=None,
         wrote_back=False, needs_lower_read=False, needs_lower_write=False):
         self.level = level
         self.op = operation
@@ -8,6 +11,9 @@ class AccessResult:
         self.tag = tag
         self.index = index
         self.offset = offset
+        self.page_offset = page_offset
+        self.ppn = ppn
+        self.vpn = vpn
         self.allocated = allocated
         self.evicted_entry = evicted_entry
         self.wrote_back = wrote_back
@@ -21,6 +27,14 @@ class EvictedCacheEntry:
         self.index = index
         self.address = address
         self.dirty = dirty
+
+class EvictedTranslationEntry:
+    def __init__(self, tag, index, ppn):
+        # self.vpn = vpn
+        # self.ppn = ppn
+        self.tag = tag
+        self.index = index
+        self.ppn = ppn
 
 class AccessLine:
     def __init__(self, address):
@@ -68,6 +82,7 @@ class AccessLine:
         dtlb_idx = self._format_numeric(self.dtlb_index, 3)
         dtlb_res = self._format_hit_miss(self.dtlb_result, 4)
         pt_res = self._format_hit_miss(self.page_table_result, 4)
+        # print("PPN:", self.ppn)
         ppn = self._format_numeric(self.ppn, 4)
 
         # DC

@@ -54,7 +54,7 @@ class PageTable:
         vpn = address[:-self.page_offset_bits]
         return page_offset, vpn
 
-    def translate(self, virtual_address):
+    def translate(self, virtual_address, physical_address=None):
         """Translate a virtual address to a physical address."""
         self.accesses += 1
         page_offset, vpn = self.parse_address(virtual_address)
@@ -73,7 +73,6 @@ class PageTable:
         self.ppn_to_vpn[ppn] = vpn
         self._touch_ppn_mru(ppn)
         physical_address = ppn + page_offset
-        #print("length physical address:", len(physical_address))
         return TranslationResult(False, vpn, ppn, physical_address, page_offset, evicted_entry=evicted_entry)
 
     def get_stats(self):
@@ -81,7 +80,7 @@ class PageTable:
             "accesses": self.accesses,
             "hits": self.hits,
             "misses": self.misses,
-            "hit_rate": self.hits / self.accesses if self.accesses > 0 else 0,
-            "disk_references": self.disk_references
+            "hit rate": self.hits / self.accesses if self.accesses > 0 else 0,
+            "disk refs": self.disk_references
         }
         return stats

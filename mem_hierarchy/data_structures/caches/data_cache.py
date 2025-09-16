@@ -1,5 +1,5 @@
 from .cache_core import CacheCore
-from mem_hierarchy.data_structures.result_structures.access_results import AccessResult
+from mem_hierarchy.data_structures.result_structures.access_results import AccessResult, EvictedCacheEntry
 
 class CacheEntry:
     def __init__(self, tag, index, address):
@@ -21,6 +21,18 @@ class DataCache(CacheCore):
                          offset_bits,
                          policy,
                          line_size)
+
+    def possibly_evict(self, address):
+        tag, index, offset = self.parse_address(address)
+        set_dict = self.sets[index]
+        if len(set_dict) >= self.associativity:
+            # evict the least recently used item (first item in ordered dict)
+            lru_info, evicted = set_dict.popitem(last=False)
+            self.evictions += 1
+            if evicted.dirty:
+                self.write_backs += 1
+            return EvictedCacheEntry(evicted.tag, evicted.index, evicted.address, evicted.dirty)
+        return None
 
     def back_fill(self, operation, address, dirty=False):
         tag, index, offset = self.parse_address(address)
@@ -61,7 +73,7 @@ class DataCache(CacheCore):
             for tag in tags_to_invalidate:
                 set_dict.pop(tag)
 
-    def get_stats(self):
+    def get_stats_old(self):
         stats = {"reads": self.reads,
                  "writes": self.writes,
                  "read_hits": self.read_hits,
@@ -72,6 +84,14 @@ class DataCache(CacheCore):
                  "write_hit_rate": self.write_hits / self.writes if self.writes > 0 else 0,
                  "evictions": self.evictions,
                  "write backs": self.write_backs,}
+        return stats
+
+    def get_stats_new(self):
+        hits = self.read_hits + self.write_hits
+        misses = self.read_misses + self.write_misses
+        stats = {"hits": hits,
+                 "misses": misses,
+                 "hit rate": hits / (hits + misses) if (hits + misses) > 0 else 0}
         return stats
 
 
