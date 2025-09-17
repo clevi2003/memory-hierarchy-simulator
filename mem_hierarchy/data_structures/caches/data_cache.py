@@ -1,17 +1,27 @@
 from .cache_core import CacheCore
-from mem_hierarchy.data_structures.result_structures.access_results import AccessResult, EvictedCacheEntry
+from mem_hierarchy.data_structures.result_structures.access_results import AccessResult
 
 class CacheEntry:
-    def __init__(self, tag, index, address):
+    """
+    Represents a single cache entry in a data cache.
+    """
+    def __init__(self, tag, index, address, dirty=False):
         self.tag = tag
         self.index = index
         self.address = address
-        self.dirty = False
+        self.dirty = dirty
 
     def mark_dirty(self):
+        """
+        Marks the cache entry as dirty.
+        :return: None
+        """
         self.dirty = True
 
 class DataCache(CacheCore):
+    """
+    Wrapper around CacheCore for data caches (DC, L2, other future caches)
+    """
     def __init__(self, name, num_sets, associativity, tag_bits, index_bits, offset_bits, policy, line_size):
         super().__init__(name,
                          num_sets,
@@ -23,6 +33,11 @@ class DataCache(CacheCore):
                          line_size)
 
     def possibly_evict(self, address):
+        """
+        Evicts the least recently used cache entry if the set is full.
+        :param address: binary string address
+        :return: the evicted CacheEntry if eviction occurred, else None
+        """
         tag, index, offset = self.parse_address(address)
         set_dict = self.sets[index]
         if len(set_dict) >= self.associativity:
@@ -31,10 +46,17 @@ class DataCache(CacheCore):
             self.evictions += 1
             if evicted.dirty:
                 self.write_backs += 1
-            return EvictedCacheEntry(evicted.tag, evicted.index, evicted.address, evicted.dirty)
+            return evicted
         return None
 
     def back_fill(self, operation, address, dirty=False):
+        """
+        Fills the cache with a new entry for the given address, possibly evicting from the relevant set.
+        :param operation: string "R" or "W"
+        :param address: binary string address
+        :param dirty: bool indicating if the new entry should be marked dirty
+        :return: AccessResult indicating the result of the back fill operation
+        """
         tag, index, offset = self.parse_address(address)
         evicted = self.possibly_evict(address)
         cache_entry = CacheEntry(tag, index, address)
@@ -44,58 +66,10 @@ class DataCache(CacheCore):
         return AccessResult(self.name, operation, address, False, tag, index, offset, allocated=True,
                             evicted_entry=evicted,wrote_back=(evicted.dirty if evicted else False))
 
-    def invalidate(self, address):
-        # invalidate cache entry that maps to this address
-        tag, index, offset = self.parse_address(address)
-        set_dict = self.sets[index]
-        if tag in set_dict:
-            set_dict.pop(tag)
-            return True
-        return False
-
-    # def invalidate_by_tag_index(self, tag, index):
-    #     set_dict = self.sets[index]
-    #     if tag in set_dict:
-    #         set_dict.pop(tag)
-    #         return True
-    #     return False
-
-    def invalidate_page(self, evicted_entry):
-        # invalidate all cache entries that map to this ppn
-        # a cache entry maps to this ppn if the top bits of its address match the ppn
-        ppn_bits = len(evicted_entry.ppn)
-        for set_dict in self.sets:
-            tags_to_invalidate = []
-            for tag, entry in set_dict.items():
-                entry_ppn = entry.address[:ppn_bits]
-                if entry_ppn == evicted_entry.ppn:
-                    tags_to_invalidate.append(tag)
-            for tag in tags_to_invalidate:
-                set_dict.pop(tag)
-
-    def get_stats_old(self):
-        stats = {"reads": self.reads,
-                 "writes": self.writes,
-                 "read_hits": self.read_hits,
-                 "write_hits": self.write_hits,
-                 "read_misses": self.read_misses,
-                 "write_misses": self.write_misses,
-                 "read_hit_rate": self.read_hits / self.reads if self.reads > 0 else 0,
-                 "write_hit_rate": self.write_hits / self.writes if self.writes > 0 else 0,
-                 "evictions": self.evictions,
-                 "write backs": self.write_backs,}
-        return stats
-
-    def get_stats_new(self):
-        hits = self.read_hits + self.write_hits
-        misses = self.read_misses + self.write_misses
-        stats = {"hits": hits,
-                 "misses": misses,
-                 "hit rate": hits / (hits + misses) if (hits + misses) > 0 else 0}
-        return stats
-
-
 class DCCache(DataCache):
+    """
+    lightweight wrapper around DataCache for L1 data cache
+    """
     def __init__(self, config):
         num_sets = config.dc.num_sets
         policy = config.dc.policy
@@ -107,6 +81,9 @@ class DCCache(DataCache):
         super().__init__("DC", num_sets, associativity, tag_bits, index_bits, offset_bits, policy, line_size)
 
 class L2Cache(DataCache):
+    """
+    lightweight wrapper around DataCache for L2 cache
+    """
     def __init__(self, config):
         num_sets = config.l2.num_sets
         policy = config.l2.policy

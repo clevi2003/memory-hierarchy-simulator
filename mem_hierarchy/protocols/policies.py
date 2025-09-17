@@ -4,12 +4,24 @@ from mem_hierarchy.data_structures.result_structures.access_results import Acces
 
 
 class WritePolicy(ABC):
+    """
+    Abstract base class for write policies
+    """
     @abstractmethod
     def on_write(self, cache, address):
         pass
 
 class WriteThroughNoWriteAllocate(WritePolicy):
+    """
+    Write-through, no write-allocate policy
+    """
     def on_write(self, cache, address):
+        """
+        Handle a write operation according to the write-through, no write-allocate policy
+        :param cache: CacheCore or inherited class
+        :param address: binary string address to write to
+        :return: AccessResult object with the result of the write operation
+        """
         tag, index, offset = cache.parse_address(address)
         cache.writes += 1
         set_dict = cache.sets[index]
@@ -25,7 +37,16 @@ class WriteThroughNoWriteAllocate(WritePolicy):
             return AccessResult(cache.name, "W", address, False, tag, index, offset, needs_lower_write=True)
 
 class WriteBackWriteAllocate(WritePolicy):
+    """
+    Write-back, write-allocate policy
+    """
     def on_write(self, cache, address):
+        """
+        Handle a write operation according to the write-back, write-allocate policy
+        :param cache: CacheCore or inherited class
+        :param address: binary string address to write to
+        :return: AccessResult object with the result of the write operation
+        """
         tag, index, offset = cache.parse_address(address)
         cache.writes += 1
         set_dict = cache.sets[index]
@@ -47,11 +68,23 @@ class WriteBackWriteAllocate(WritePolicy):
 
 
 class InclusionPolicy(ABC):
+    """
+    Abstract base class for inclusion policies
+    """
     @abstractmethod
     def on_lower_eviction(self, upper_cache, evicted_entry):
         pass
 
 class InclusivePolicy(InclusionPolicy):
+    """
+    Inclusive cache policy
+    """
     def on_lower_eviction(self, upper_cache, address):
+        """
+        Invalidate the corresponding entry in the upper cache upon eviction from the lower cache
+        :param upper_cache: CacheCore or inherited class
+        :param address: binary string address that was evicted from the lower cache
+        :return: None
+        """
         upper_cache.invalidate(address)
 

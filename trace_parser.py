@@ -3,6 +3,9 @@ def hex_to_binary(hex_string, num_bits):
     return bin(int(hex_string, 16))[2:].zfill(num_bits)
 
 class TraceParser:
+    """
+    Parses a trace file and yields operation and address pairs
+    """
     def __init__(self, trace_file, addr_bits=32):
         self.addr_bits = addr_bits
         self.trace_file = trace_file

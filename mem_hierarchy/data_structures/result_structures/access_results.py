@@ -1,9 +1,11 @@
-from pandas.io.sas.sas_constants import page_count_offset
-
 
 class AccessResult:
+    """
+    Flexible class to encapsulate the result of accessing a memory hierarchy level
+    """
     def __init__(self, level, operation, address, hit, tag, index, offset, page_offset=None, ppn=None, vpn=None, allocated=False, evicted_entry=None,
         wrote_back=False, needs_lower_read=False, needs_lower_write=False):
+        # lots of parameters, but this is a flexible data class to hold whatever info is needed
         self.level = level
         self.op = operation
         self.addr = address
@@ -20,23 +22,10 @@ class AccessResult:
         self.needs_lower_read = needs_lower_read
         self.needs_lower_write = needs_lower_write
 
-
-class EvictedCacheEntry:
-    def __init__(self, tag, index, address, dirty):
-        self.tag = tag
-        self.index = index
-        self.address = address
-        self.dirty = dirty
-
-class EvictedTranslationEntry:
-    def __init__(self, tag, index, ppn):
-        # self.vpn = vpn
-        # self.ppn = ppn
-        self.tag = tag
-        self.index = index
-        self.ppn = ppn
-
 class AccessLine:
+    """
+    Class to encapsulate all the info about a single memory access for logging purposes
+    """
     def __init__(self, address):
         # format address as int regardless of if its an int or string
         if isinstance(address, str):
@@ -59,6 +48,13 @@ class AccessLine:
 
     @staticmethod
     def _format_numeric(value, width, zero_pad=False):
+        """
+        Helper to format numeric values as hex strings, with options for width and zero-padding
+        :param value: int or None
+        :param width: int
+        :param zero_pad: bool
+        :return: formatted string
+        """
         if value is None:
             return " " * width
         if zero_pad:
@@ -67,15 +63,19 @@ class AccessLine:
 
     @staticmethod
     def _format_hit_miss(value, width):
+        """
+        Helper to format hit/miss values as 'hit' or 'miss', or spaces if None
+        :param value: bool or None
+        :param width: int
+        :return: formatted string
+        """
         return (" " * width) if value is None else f"{'hit' if value else 'miss':>{width}s}"
 
     def __str__(self):
-        # Address is always printed as 8-hex, zero-padded
+        # address is always printed as 8-hex, zero-padded
         addr = self._format_numeric(self.address, 8, zero_pad=True)
 
         # VM side (right-aligned hex, no zero-pad)
-        # print(self.dc_tag, type(self.dc_tag))
-        # print(self.vpn, type(self.vpn))
         vpn = self._format_numeric(self.vpn, 6)
         page_off = self._format_numeric(self.page_offset, 4)
         dtlb_tag = self._format_numeric(self.dtlb_tag, 6)
@@ -101,19 +101,3 @@ class AccessLine:
             dc_tag, dc_idx, dc_res,
             l2_tag, l2_idx, l2_res
         ])
-
-class EvictedPageTableEntry:
-    def __init__(self, ppn, vpn, page_offset_bits=0):
-        self.ppn = ppn
-        self.vpn = vpn
-        self.page_offset_bits = page_offset_bits
-
-class TranslationResult:
-    def __init__(self, hit, vpn, ppn, physical_address, offset, evicted_entry=None):
-        self.hit = hit
-        self.vpn = vpn
-        self.ppn = ppn
-        self.physical_address = physical_address
-        self.evicted_entry = evicted_entry
-        self.offset = offset
-

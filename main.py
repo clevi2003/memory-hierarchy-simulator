@@ -8,7 +8,7 @@ def main():
 
     simulator = MemoryHierarchySimulator(mem_sim_config)
     # simulator.simulate("trace_copy.dat")
-    simulator.simulate("trace.dat")
+    simulator.simulate("long_trace.dat")
 
 
 if __name__ == '__main__':

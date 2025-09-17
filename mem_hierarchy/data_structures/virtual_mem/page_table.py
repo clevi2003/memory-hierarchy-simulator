@@ -1,6 +1,30 @@
-from mem_hierarchy.data_structures.result_structures.access_results import EvictedPageTableEntry, TranslationResult
+#from mem_hierarchy.data_structures.result_structures.access_results import EvictedPageTableEntry, TranslationResult
+
+class EvictedPageTableEntry:
+    """
+    Represents an evicted page table entry
+    """
+    def __init__(self, ppn, vpn, page_offset_bits=0):
+        self.ppn = ppn
+        self.vpn = vpn
+        self.page_offset_bits = page_offset_bits
+
+class TranslationResult:
+    """
+    Represents the result of a page table translation
+    """
+    def __init__(self, hit, vpn, ppn, physical_address, offset, evicted_entry=None):
+        self.hit = hit
+        self.vpn = vpn
+        self.ppn = ppn
+        self.physical_address = physical_address
+        self.evicted_entry = evicted_entry
+        self.offset = offset
 
 class PageTable:
+    """
+    Page table implementation with LRU eviction
+    """
     def __init__(self, config):
         # page table config
         self.n_virtual_pages = config.pt.n_virtual_pages
@@ -23,17 +47,22 @@ class PageTable:
         self.disk_references = 0
 
     def _touch_ppn_mru(self, ppn):
-        """Mark the given PPN as most recently used."""
+        """
+        Mark a ppn as most recently used
+        :param ppn: str, the ppn to mark as most recently used
+        :return: None
+        """
         if ppn in self.lru_ppns:
-            # self.lru_ppns.move_to_end(ppn)
             self.lru_ppns.remove(ppn)
             self.lru_ppns.append(ppn)
         else:
-            #self.lru_ppns[ppn] = None
             self.lru_ppns.append(ppn)
 
     def _allocate_ppn(self):
-        """Allocate a PPN, evicting if necessary."""
+        """
+        Allocate a PPN, evicting if necessary
+        :return: None
+        """
         # if there are free ppns, use one of those
         if self.free_ppns:
             ppn = self.free_ppns[0]
@@ -48,19 +77,29 @@ class PageTable:
         return victim_ppn, EvictedPageTableEntry(victim_ppn, victim_vpn, page_offset_bits=self.page_offset_bits)
 
     def parse_address(self, address):
+        """
+        Parse a binary address into its page offset and vpn components
+        :param address: binary string, the address to parse
+        :return: binary string, binary string; the page offset and vpn
+        """
         # final bits are the page offset
         page_offset = address[-self.page_offset_bits:]
         # first bits are the vpn
         vpn = address[:-self.page_offset_bits]
         return page_offset, vpn
 
-    def translate(self, virtual_address, physical_address=None):
-        """Translate a virtual address to a physical address."""
+    def translate(self, virtual_address):
+        """
+        Translate a virtual address to a physical address
+        :param virtual_address: binary string, the virtual address to translate
+        :return: TranslationResult
+        """
         self.accesses += 1
         page_offset, vpn = self.parse_address(virtual_address)
         # pt hit
         if vpn in self.vpn_to_ppn:
             self.hits += 1
+            # use existing translation and update lru
             ppn = self.vpn_to_ppn[vpn]
             self._touch_ppn_mru(ppn)
             physical_address = ppn + page_offset
@@ -68,6 +107,7 @@ class PageTable:
         # pt miss
         self.misses += 1
         self.disk_references += 1
+        # allocate a new ppn, possibly evict lru ppn, evicted ppn is the new ppn to allocate
         ppn, evicted_entry = self._allocate_ppn()
         self.vpn_to_ppn[vpn] = ppn
         self.ppn_to_vpn[ppn] = vpn
@@ -76,6 +116,10 @@ class PageTable:
         return TranslationResult(False, vpn, ppn, physical_address, page_offset, evicted_entry=evicted_entry)
 
     def get_stats(self):
+        """
+        Get page table stats
+        :return: dict of stats
+        """
         stats = {
             "accesses": self.accesses,
             "hits": self.hits,
