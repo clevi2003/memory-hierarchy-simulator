@@ -219,6 +219,9 @@ class Config:
             raise ValueError("L2 line size must be at least as large as DC line size.")
 
     def validate(self):
+        # address bits must be <= 32
+        if self.address_bits > 32:
+            raise ValueError("Address bits exceed 32 bits.")
         if self.dtlb_enabled:
             self._validate_dtlb()
         self._validate_dc()

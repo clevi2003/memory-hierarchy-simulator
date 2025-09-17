@@ -2,7 +2,7 @@ from config import Config
 from mem_hierarchy import MemoryHierarchySimulator
 
 def main():
-    mem_sim_config = Config.from_config_file("trace copy.config")
+    mem_sim_config = Config.from_config_file("trace.config")
     print(mem_sim_config)
 
 

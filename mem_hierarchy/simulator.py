@@ -61,7 +61,12 @@ class MemoryHierarchySimulator:
         print("Virtual  Virt.  Page TLB    TLB TLB  PT   Phys        DC  DC          L2  L2")
         print("Address  Page # Off  Tag    Ind Res. Res. Pg # DC Tag Ind Res. L2 Tag Ind Res.")
         print("-------- ------ ---- ------ --- ---- ---- ---- ------ --- ---- ------ --- ----")
-        for operation, address in TraceParser(trace, addr_bits=self.config.address_bits):
+        for operation, address, hex_address in TraceParser(trace, addr_bits=self.config.address_bits):
+            # print(len(address))
+            if len(address) > self.config.address_bits:
+                print(f"Address {hex_address} exceeds the configured address bits {self.config.address_bits}")
+                continue
+                # raise ValueError(f"Address {hex_address} exceeds the configured address bits {self.config.address_bits}")
             if operation == "R":
                 self.reads += 1
             elif operation == "W":

@@ -20,4 +20,4 @@ class TraceParser:
                 continue
             operation = parts[0]
             address = hex_to_binary(parts[1].strip(), self.addr_bits)
-            yield operation, address
+            yield operation, address, parts[1].strip()
