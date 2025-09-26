@@ -50,7 +50,6 @@ class WriteBackWriteAllocate(WritePolicy):
         tag, index, offset = cache.parse_address(address)
         cache.writes += 1
         set_dict = cache.sets[index]
-
         # write hit, mark as dirty
         if tag in set_dict:
             cache.write_hits += 1

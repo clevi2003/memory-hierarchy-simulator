@@ -20,10 +20,11 @@ class DataCacheLevel(MemoryLevel):
             line.l2_index = int(access_result.index)
             line.l2_result = access_result.hit
 
-    def read_access(self, address, line):
+    def read_access(self, address, line, update_line):
         first_read = self.cache.probe("R", address)
         self.cache.reads += 1
-        self.update_line(first_read, line)
+        if update_line:
+            self.update_line(first_read, line)
         # read hit
         if first_read.hit:
             self.cache.read_hits += 1
@@ -43,31 +44,30 @@ class DataCacheLevel(MemoryLevel):
             self.lower_level.access("W", back_filled.evicted_entry.address, line)
         return back_filled
 
-    def write_access(self, address, line):
+    def write_access(self, address, line, update_line):
         self.cache.writes += 1
+        first_write = self.write_policy.on_write(self.cache, address)
         # if write allocate write back, must ensure data is in lower level to enforce inclusion
         if self.lower_level and not self.cache.policy:
-            lower_read = self.lower_level.access("R", address, line)
+            update_line_lower = not first_write.hit
+            lower_read = self.lower_level.access("R", address, line, update_line=update_line_lower)
             if lower_read.evicted_entry:
                 self.inclusion_policy.on_lower_eviction(self.cache, lower_read.evicted_entry.address)
-        first_write = self.write_policy.on_write(self.cache, address)
-        if first_write.hit:
-            self.cache.write_hits += 1
-        else:
-            self.cache.write_misses += 1
         # write through or no write allocate miss, write to lower level
         if first_write.needs_lower_write and self.lower_level:
             self.lower_level.access("W", address, line)
         # if write caused dirty eviction, must write that to the lower level
         if first_write.evicted_entry and first_write.evicted_entry.dirty and self.lower_level:
             self.lower_level.access("W", first_write.evicted_entry.address, line)
+        if update_line:
+            self.update_line(first_write, line)
         return first_write
 
-    def access(self, operation, address, line):
+    def access(self, operation, address, line, update_line=True):
         if operation == "R":
-            return self.read_access(address, line)
+            return self.read_access(address, line, update_line)
         elif operation == "W":
-            return self.write_access(address, line)
+            return self.write_access(address, line, update_line)
         else:
             raise ValueError(f"Unknown op: {operation}")
 

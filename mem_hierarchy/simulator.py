@@ -61,8 +61,8 @@ class MemoryHierarchySimulator:
         print("Virtual  Virt.  Page TLB    TLB TLB  PT   Phys        DC  DC          L2  L2")
         print("Address  Page # Off  Tag    Ind Res. Res. Pg # DC Tag Ind Res. L2 Tag Ind Res.")
         print("-------- ------ ---- ------ --- ---- ---- ---- ------ --- ---- ------ --- ----")
-        for operation, address, hex_address in TraceParser(trace, addr_bits=self.config.address_bits):
-            # print(len(address))
+        for operation, int_address, hex_address in TraceParser(trace, addr_bits=self.config.address_bits):
+            address = bin(int_address)[2:].zfill(self.config.address_bits)
             if len(address) > self.config.address_bits:
                 print(f"Address {hex_address} exceeds the configured address bits {self.config.address_bits}")
                 continue
@@ -75,7 +75,7 @@ class MemoryHierarchySimulator:
                 raise ValueError(f"Unknown op: {operation}")
             # have line get passed through the hierarchy to collect info
             line = AccessLine(address)
-            self.top_level.access(operation, address, line)
+            self.top_level.access(operation, int_address, line)
             print(line)
         print("\nSimulation statistics\n")
         self.pprint_stats()

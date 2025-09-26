@@ -35,8 +35,9 @@ class DTLBLevel(MemoryLevel):
 
     def write_access(self, address, translation_info):
         self.dtlb_cache.writes += 1
-
-        back_filled = self.dtlb_cache.back_fill(address, translation_info.ppn)
+        #print("translated p address:", translation_info.physical_address)
+        # print("from v address:", address)
+        back_filled = self.dtlb_cache.back_fill(address, translation_info.physical_address)
         if back_filled.evicted_entry:
             self.dtlb_cache.evictions += 1
 

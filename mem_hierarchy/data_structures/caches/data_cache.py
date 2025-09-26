@@ -22,12 +22,15 @@ class DataCache(CacheCore):
     """
     Wrapper around CacheCore for data caches (DC, L2, other future caches)
     """
-    def __init__(self, name, num_sets, associativity, tag_bits, index_bits, offset_bits, policy, line_size):
+    def __init__(self, name, num_sets, associativity, tag_bits, index_bits, phys_bits, ppn_bits, page_offset_bits, offset_bits, policy, line_size):
         super().__init__(name,
                          num_sets,
                          associativity,
                          tag_bits,
                          index_bits,
+                         phys_bits,
+                         ppn_bits,
+                         page_offset_bits,
                          offset_bits,
                          policy,
                          line_size)
@@ -78,7 +81,10 @@ class DCCache(DataCache):
         tag_bits = config.bits.dc_tag_bits
         index_bits = config.bits.dc_index_bits
         offset_bits = config.bits.dc_offset_bits
-        super().__init__("DC", num_sets, associativity, tag_bits, index_bits, offset_bits, policy, line_size)
+        ppn_bits = config.bits.ppn_bits
+        page_offset_bits = config.bits.page_offset_bits
+        phys_bits = ppn_bits + page_offset_bits
+        super().__init__("DC", num_sets, associativity, tag_bits, index_bits, phys_bits, ppn_bits, page_offset_bits, offset_bits, policy, line_size)
 
 class L2Cache(DataCache):
     """
@@ -92,4 +98,7 @@ class L2Cache(DataCache):
         tag_bits = config.bits.l2_tag_bits
         index_bits = config.bits.l2_index_bits
         offset_bits = config.bits.l2_offset_bits
-        super().__init__("L2", num_sets, associativity, tag_bits, index_bits, offset_bits, policy, line_size)
+        ppn_bits = config.bits.ppn_bits
+        page_offset_bits = config.bits.page_offset_bits
+        phys_bits = ppn_bits + page_offset_bits
+        super().__init__("L2", num_sets, associativity, tag_bits, index_bits, phys_bits, ppn_bits, page_offset_bits, offset_bits, policy, line_size)

@@ -68,6 +68,8 @@ class Config:
                  pt_cfg,
                  dc_cfg,
                  l2_cfg=None):
+        self.physical_address_bits = 0
+        self.virtual_address_bits = 0
         self.virtual_addresses = virtual_addresses
         self.dtlb_enabled = dtlb_enabled
         self.l2_enabled = l2_enabled
@@ -75,7 +77,7 @@ class Config:
         self.pt = pt_cfg
         self.dc = dc_cfg
         self.l2 = l2_cfg if self.l2_enabled else None
-        self.address_bits = 0  # fixed at 32 bits
+        #self.address_bits = 0  # fixed at 32 bits
         self.bits = BitCounts()
         self.validate()
         self.derive_bits()
@@ -220,7 +222,7 @@ class Config:
 
     def validate(self):
         # address bits must be <= 32
-        if self.address_bits > 32:
+        if self.virtual_address_bits > 32:
             raise ValueError("Address bits exceed 32 bits.")
         if self.dtlb_enabled:
             self._validate_dtlb()
@@ -248,11 +250,14 @@ class Config:
             self.bits.vpn_bits = safe_log_2(self.pt.n_virtual_pages)
             self.bits.ppn_bits = safe_log_2(self.pt.n_physical_pages)
             self.address_bits = safe_log_2(self.pt.n_virtual_pages) + safe_log_2(self.pt.page_size)
+            self.physical_address_bits = safe_log_2(self.pt.n_physical_pages) + safe_log_2(self.pt.page_size)
+            self.virtual_address_bits = safe_log_2(self.pt.n_virtual_pages) + safe_log_2(self.pt.page_size)
 
         else:
             self.bits.page_offset_bits = 0
             self.bits.vpn_bits = 0
-            self.address_bits = safe_log_2(self.pt.n_physical_pages) + safe_log_2(self.pt.page_size)
+            self.physical_address_bits = safe_log_2(self.pt.n_physical_pages) + safe_log_2(self.pt.page_size)
+            self.virtual_address_bits = self.physical_address_bits
 
         # DTLB bits slice the VPN, not the full 32-bit VA
         if self.dtlb_enabled and self.virtual_addresses:
@@ -271,7 +276,7 @@ class Config:
 
         # DC bits slice 32 bit address
         dc_bits = self._bit_slicer(
-            addr_bits=self.address_bits,  # 32
+            addr_bits=self.physical_address_bits,  # 32
             sets=self.dc.num_sets,
             line_size=self.dc.line_size
         )
@@ -282,7 +287,7 @@ class Config:
         # l2 cache slice 32 bit address
         if self.l2_enabled:
             l2_bits = self._bit_slicer(
-                addr_bits=self.address_bits,  # 32
+                addr_bits=self.physical_address_bits,
                 sets=self.l2.num_sets,
                 line_size=self.l2.line_size
             )

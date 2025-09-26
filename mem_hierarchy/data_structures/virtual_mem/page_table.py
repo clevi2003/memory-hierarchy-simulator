@@ -33,11 +33,21 @@ class PageTable:
         self.vpn_bits = config.bits.vpn_bits
         self.ppn_bits = config.bits.ppn_bits
         self.page_offset_bits = config.bits.page_offset_bits
+        self.virt_bits = self.vpn_bits + self.page_offset_bits
+        self.phys_bits = self.ppn_bits + self.page_offset_bits
+
+        # masks
+        self._offset_mask = (1 << self.page_offset_bits) - 1
+        self._vpn_mask = (1 << self.vpn_bits) - 1
+        self._ppn_mask = (1 << self.ppn_bits) - 1
+        self._virt_mask = (1 << self.virt_bits) - 1
+        self._phys_mask = (1 << self.phys_bits) - 1
 
         # page table state
         self.vpn_to_ppn = {}
         self.ppn_to_vpn = {}
-        self.free_ppns = [format(elem, f'0{self.ppn_bits}b') for elem in range(self.n_physical_pages)]
+        self.free_ppns = [elem for elem in range(self.n_physical_pages)]
+        #self.free_ppns = [format(elem, f'0{self.ppn_bits}b') for elem in range(self.n_physical_pages)]
         self.lru_ppns = []
 
         # stats for tracking
@@ -82,11 +92,24 @@ class PageTable:
         :param address: binary string, the address to parse
         :return: binary string, binary string; the page offset and vpn
         """
-        # final bits are the page offset
-        page_offset = address[-self.page_offset_bits:]
-        # first bits are the vpn
-        vpn = address[:-self.page_offset_bits]
-        return page_offset, vpn
+        # # final bits are the page offset
+        # page_offset = address[-self.page_offset_bits:]
+        # # first bits are the vpn
+        # vpn = address[:-self.page_offset_bits]
+        # return page_offset, vpn
+        address  = address & self._virt_mask
+        offset = address & self._offset_mask
+        vpn = (address >> self.page_offset_bits) & self._vpn_mask
+        return offset, vpn
+
+    def build_physical_address(self, ppn, offset):
+        """
+        Build a physical address from a ppn and offset
+        :param ppn: binary string, the ppn
+        :param offset: binary string, the page offset
+        :return: binary string, the physical address
+        """
+        return ((ppn & self._ppn_mask) << self.page_offset_bits | (offset & self._offset_mask)) & self._phys_mask
 
     def translate(self, virtual_address):
         """
@@ -96,13 +119,13 @@ class PageTable:
         """
         self.accesses += 1
         page_offset, vpn = self.parse_address(virtual_address)
+        ppn = self.vpn_to_ppn.get(vpn, None)
         # pt hit
-        if vpn in self.vpn_to_ppn:
+        if not ppn is None:
             self.hits += 1
             # use existing translation and update lru
-            ppn = self.vpn_to_ppn[vpn]
             self._touch_ppn_mru(ppn)
-            physical_address = ppn + page_offset
+            physical_address = self.build_physical_address(ppn, page_offset)
             return TranslationResult(True, vpn, ppn, physical_address, page_offset)
         # pt miss
         self.misses += 1
@@ -112,7 +135,7 @@ class PageTable:
         self.vpn_to_ppn[vpn] = ppn
         self.ppn_to_vpn[ppn] = vpn
         self._touch_ppn_mru(ppn)
-        physical_address = ppn + page_offset
+        physical_address = self.build_physical_address(ppn, page_offset)
         return TranslationResult(False, vpn, ppn, physical_address, page_offset, evicted_entry=evicted_entry)
 
     def get_stats(self):
