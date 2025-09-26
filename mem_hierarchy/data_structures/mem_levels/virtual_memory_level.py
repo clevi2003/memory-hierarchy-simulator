@@ -25,9 +25,9 @@ class VirtualMemoryLevel(MemoryLevel):
         # print("_:", _)
         # print("_ == physical adress:", _ == physical_address)
         # print("len physical address:", len(physical_address))
-        line.vpn = int(vpn, 2)
-        line.page_offset = int(page_offset, 2)
-        line.ppn = int(ppn, 2)
+        line.vpn = vpn
+        line.page_offset = page_offset
+        line.ppn = ppn
 
     def _manage_translation(self, address, line):
         translation_info = self.page_table.translate(address)
@@ -42,13 +42,11 @@ class VirtualMemoryLevel(MemoryLevel):
             if cached_translation.hit:
                 physical_address = cached_translation.addr
                 self.update_dtlb_hit_line(address, physical_address, line)
-                translation_info = self._manage_translation(address, line)
-                physical_address_translated = translation_info.physical_address
-                print("cached address:", physical_address, len(physical_address))
-                print("translated address:", physical_address_translated, len(physical_address_translated))
-                print("addresses match:", physical_address == physical_address_translated)
-
-
+                # translation_info = self._manage_translation(address, line)
+                # physical_address_translated = translation_info.physical_address
+                # print("cached address:", physical_address, len(physical_address))
+                # print("translated address:", physical_address_translated, len(physical_address_translated))
+                # print("addresses match:", physical_address == physical_address_translated)
             else:
                 translation_info = self._manage_translation(address, line)
                 physical_address = translation_info.physical_address

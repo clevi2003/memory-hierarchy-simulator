@@ -5,38 +5,35 @@ class CacheCore:
     """
     A class representing a generic cache, can be inherited by specific cache types
     """
-    def __init__(self, name, num_sets, associativity, tag_bits, index_bits, phys_bits, ppn_bits, page_offset_bits, offset_bits=None, policy=None, line_size=None):
-        # basic config and setup
+    def __init__(self, name, num_sets, associativity, tag_bits, index_bits, *, offset_bits=0, phys_bits=None,
+                 ppn_bits=None, page_offset_bits=None, policy=None, line_size=None,):
         self.name = name
         self.num_sets = num_sets
         self.associativity = associativity
         self.tag_bits = tag_bits
         self.index_bits = index_bits
-        offset_bits = offset_bits if offset_bits else 0
-        self.offset_bits = offset_bits
-        self.expected_bits = self.tag_bits + self.index_bits + self.offset_bits
+        self.offset_bits = offset_bits or 0
+
+        # precompute masks
+        self._phys_mask = (1 << phys_bits) - 1 if phys_bits else (1 << (tag_bits + index_bits + offset_bits)) - 1
+        self._index_mask = (1 << self.index_bits) - 1
+        self._offset_mask = (1 << self.offset_bits) - 1 if self.offset_bits > 0 else 0
+
+        # widths used for page invalidation
+        self.phys_bits = None if phys_bits is None else phys_bits
+        self.ppn_bits = None if ppn_bits is None else ppn_bits
+        self.page_offset_bits = None if page_offset_bits is None else page_offset_bits
+
+        # storage and policy
         self.sets = [OrderedDict() for _ in range(self.num_sets)]
         self.policy = policy
         self.line_size = line_size
 
-        self.phys_bits = int(phys_bits)
-        self.ppn_bits = int(ppn_bits)
-        self.page_offset_bits = int(page_offset_bits)
-
-        self._phys_mask = (1 << self.phys_bits) - 1
-        self._index_mask = (1 << self.index_bits) - 1
-        self._offset_mask = (1 << self.offset_bits) - 1
-        self._ppn_extract_shift = self.phys_bits - self.ppn_bits
-
-        # manage stats
-        self.reads = 0
-        self.writes = 0
-        self.read_hits = 0
-        self.write_hits = 0
-        self.read_misses = 0
-        self.write_misses = 0
-        self.evictions = 0
-        self.write_backs = 0
+        # stats
+        self.reads = self.writes = 0
+        self.read_hits = self.write_hits = 0
+        self.read_misses = self.write_misses = 0
+        self.evictions = self.write_backs = 0
 
     @staticmethod
     def _coerce_addr(address):
@@ -51,16 +48,6 @@ class CacheCore:
         :param address: binary string address
         :return: integer tag, index, and offset
         """
-        # if len(address) < self.expected_bits:
-        #     address = address.zfill(self.expected_bits)
-        # # get first bits for the tag
-        # tag = address[:self.tag_bits]
-        # # get middle bits for index
-        # index = address[self.tag_bits:self.tag_bits + self.index_bits]
-        # # get final bits for offset
-        # #offset = address[-self.offset_bits:]
-        # offset = address[self.tag_bits + self.index_bits:]
-        # return int(tag, 2), int(index, 2), int(offset, 2)
         addr = self._coerce_addr(address) & self._phys_mask
         offset = addr & self._offset_mask
         index = (addr >> self.offset_bits) & self._index_mask
@@ -117,22 +104,12 @@ class CacheCore:
         for set_dict in self.sets:
             tags_to_invalidate = []
             for tag, entry in set_dict.items():
-                paddr = self._coerce_addr(entry.address) & self._phys_mask
-                entry_ppn = paddr >> shift
+                physical_address = self._coerce_addr(entry.address) & self._phys_mask
+                entry_ppn = physical_address >> shift
                 if entry_ppn == evicted_entry.ppn:
                     tags_to_invalidate.append(tag)
             for tag in tags_to_invalidate:
                 set_dict.pop(tag)
-        # ppn_bits = len(evicted_entry.ppn)
-        # for set_dict in self.sets:
-        #     tags_to_invalidate = []
-        #     for tag, entry in set_dict.items():
-        #         entry_ppn = entry.address[:ppn_bits]
-        #         # a cache entry maps to this ppn if the top bits of its address match the ppn
-        #         if entry_ppn == evicted_entry.ppn:
-        #             tags_to_invalidate.append(tag)
-        #     for tag in tags_to_invalidate:
-        #         set_dict.pop(tag)
 
     def get_stats(self):
         """
