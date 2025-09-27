@@ -108,12 +108,12 @@ class MemoryHierarchySimulator:
         stats = self.get_stats()
         stat_str = ""
         dtlb_stats = stats.get('dtlb', None)
-        if dtlb_stats:
+        if dtlb_stats is not None:
             stat_str += "dtlb hits        : " + str(dtlb_stats['hits']) + "\n"
             stat_str += "dtlb misses      : " + str(dtlb_stats['misses']) + "\n"
             stat_str += "dtlb hit rate    : " + f"{dtlb_stats['hit rate']:.6f}" + "\n\n"
         pt_stats = stats.get('page table', None)
-        if pt_stats:
+        if pt_stats is not None:
             stat_str += "pt hits          : " + str(pt_stats['hits']) + "\n"
             stat_str += "pt misses        : " + str(pt_stats['misses']) + "\n"
             stat_str += "pt hit rate      : " + f"{pt_stats['hit rate']:.6f}" + "\n\n"
@@ -122,7 +122,7 @@ class MemoryHierarchySimulator:
         stat_str += "dc misses        : " + str(dc_stats['misses']) + "\n"
         stat_str += "dc hit rate      : " + f"{dc_stats['hit rate']:.6f}" + "\n\n"
         l2_stats = stats.get('l2', None)
-        if l2_stats:
+        if l2_stats is not None:
             stat_str += "L2 hits         : " + str(l2_stats['hits']) + "\n"
             stat_str += "L2 misses       : " + str(l2_stats['misses']) + "\n"
             stat_str += "L2 hit rate     : " + f"{l2_stats['hit rate']:.6f}" + "\n\n"

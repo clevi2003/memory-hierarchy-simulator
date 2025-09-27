@@ -48,7 +48,7 @@ class DataCacheLevel(MemoryLevel):
         self.cache.writes += 1
         first_write = self.write_policy.on_write(self.cache, address)
         # if write allocate write back, must ensure data is in lower level to enforce inclusion
-        if self.lower_level and not self.cache.policy:
+        if self.lower_level and not self.cache.policy and not first_write.hit:
             update_line_lower = not first_write.hit
             lower_read = self.lower_level.access("R", address, line, update_line=update_line_lower)
             if lower_read.evicted_entry:
