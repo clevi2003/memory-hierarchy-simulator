@@ -42,16 +42,20 @@ class CacheCore:
         s = address.strip()
         return int(s, 2)
 
+    def _block_base(self, addr: int) -> int:
+        return addr & ~self._offset_mask
+
     def parse_address(self, address):
         """
-        Parse a binary string address into its tag, index, and offset components
-        :param address: binary string address
+        Parse a address into its tag, index, and offset components
+        :param address: int
         :return: integer tag, index, and offset
         """
+        base = self._block_base(address)
         addr = self._coerce_addr(address) & self._phys_mask
-        offset = addr & self._offset_mask
-        index = (addr >> self.offset_bits) & self._index_mask
-        tag = addr >> (self.index_bits + self.offset_bits)
+        offset = base & self._offset_mask
+        index = (base >> self.offset_bits) & self._index_mask
+        tag = base >> (self.index_bits + self.offset_bits)
         return tag, index, offset
 
     @staticmethod
@@ -66,17 +70,59 @@ class CacheCore:
         set_dict[tag] = cache_entry
         return cache_entry
 
-    def probe(self, operation, address):
+    def contains(self, address):
+        """
+        Check if the address is in the cache
+        :param address: int
+        :return: boolean indicating if the address is in the cache
+        """
+        address = self._block_base(address)
+        tag, index, offset = self.parse_address(address)
+        set_dict = self.sets[index]
+        return tag in set_dict
+
+    def is_dirty(self, address):
+        """
+        Check if the cache entry that maps to this address is dirty
+        :param address: int
+        :return: boolean indicating if the entry is dirty, or None if not present
+        """
+        address = self._block_base(address)
+        tag, index, offset = self.parse_address(address)
+        set_dict = self.sets[index]
+        if tag in set_dict:
+            entry = set_dict[tag]
+            return entry.dirty
+        return None
+
+    def mark_dirty(self, address):
+        """
+        Mark the cache entry that maps to this address as dirty
+        :param address: int
+        :return: boolean indicating if an entry was marked dirty
+        """
+        address = self._block_base(address)
+        tag, index, offset = self.parse_address(address)
+        set_dict = self.sets[index]
+        if tag in set_dict:
+            entry = self.get_update_mru(set_dict, tag)
+            entry.mark_dirty()
+            return True
+        return False
+
+    def probe(self, operation, address, update_mru=False):
         """
         Check if the address is in the cache without modifying the cache state (other than lru info)
+        :param update_mru: bool indicating if the entry should be updated to most recently used on hit
         :param operation: string "R" or "W"
-        :param address: binary string address
+        :param address: int
         :return: AccessResult object indicating hit or miss and other info
         """
         tag, index, offset = self.parse_address(address)
         set_dict = self.sets[index]
         if tag in set_dict:
-            self.get_update_mru(set_dict, tag)
+            if update_mru:
+                self.get_update_mru(set_dict, tag)
             return AccessResult(self.name, operation, address, True, tag, index, offset)
         return AccessResult(self.name, operation, address, False, tag, index, offset,
                             needs_lower_read=operation=="R")
@@ -84,7 +130,7 @@ class CacheCore:
     def invalidate(self, address):
         """
         Invalidate cache entry that maps to this address
-        :param address: binary string address
+        :param address: int
         :return: boolean indicating if an entry was invalidated
         """
         tag, index, offset = self.parse_address(address)

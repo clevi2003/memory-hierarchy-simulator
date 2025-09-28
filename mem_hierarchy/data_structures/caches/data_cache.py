@@ -24,6 +24,10 @@ class DataCache(CacheCore):
     """
     def __init__(self, name, num_sets, associativity, tag_bits, index_bits, *, offset_bits, phys_bits, ppn_bits,
                  page_offset_bits, policy=None, line_size):
+        self.alloc_on_write_miss = 0
+        self.writebacks_during_run = 0
+        self.l2_lower_R_calls = 0  # number of times L2 calls its lower level with "R"
+        self.l2_read_miss_calls = 0
         super().__init__(name, num_sets, associativity, tag_bits, index_bits, offset_bits=offset_bits,
                          phys_bits=phys_bits, ppn_bits=ppn_bits, page_offset_bits=page_offset_bits, policy=policy,
                          line_size=line_size)
@@ -55,12 +59,22 @@ class DataCache(CacheCore):
         """
         tag, index, offset = self.parse_address(address)
         evicted = self.possibly_evict(address)
-        cache_entry = CacheEntry(tag, index, address)
+        cache_entry = CacheEntry(tag, index, self._block_base(address))
         if dirty:
             cache_entry.mark_dirty()
         self.sets[index][tag] = cache_entry
         return AccessResult(self.name, operation, address, False, tag, index, offset, allocated=True,
                             evicted_entry=evicted,wrote_back=(evicted.dirty if evicted else False))
+
+    def iter_dirty_entries(self):
+        """
+        Generator to iterate over all dirty cache entries in the cache.
+        :return: yields dirty CacheEntry objects
+        """
+        for set_dict in self.sets:
+            for entry in set_dict.values():
+                if entry.dirty:
+                    yield entry
 
 class DCCache(DataCache):
     """

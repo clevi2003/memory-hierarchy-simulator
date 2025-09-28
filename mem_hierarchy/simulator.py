@@ -52,6 +52,43 @@ class MemoryHierarchySimulator:
         self.reads = 0
         self.writes = 0
 
+    @staticmethod
+    def align_to_block(address, offset_bits):
+        return address & ~((1 << offset_bits) - 1)
+
+    def flush(self):
+        if self.dc:
+            counter = 0
+            sub_counter = 0
+            other_sub_counter = 0
+            for entry in self.dc.cache.iter_dirty_entries():
+                assert entry.address == self.align_to_block(entry.address, self.dc.cache.offset_bits)
+                counter += 1
+                addr = entry.address
+                l2_addr = self.align_to_block(addr, self.l2.cache.offset_bits)
+                if self.l2 and self.l2.cache.contains(l2_addr):  # non-counting probe
+                    self.l2.cache.mark_dirty(l2_addr)  # do not use .access()
+                    other_sub_counter += 1
+                else:
+                    sub_counter += 1
+                    self.l2.cache.back_fill("W", l2_addr, dirty=True)
+                    # self.memory.access("W", l2_addr, line=None)
+            print(f"Flushed {counter} dirty entries from DC")
+            print(f"Of those, {other_sub_counter} were already in L2 and marked dirty")
+            print(f"Of those, {sub_counter} were not in L2 and moved to L2")
+        if self.l2:
+            counter = 0
+            for entry in self.l2.cache.iter_dirty_entries():
+                assert entry.address == self.align_to_block(entry.address, self.l2.cache.offset_bits)
+                counter += 1
+                addr = self.align_to_block(entry.address, self.l2.cache.offset_bits)
+                self.memory.access("W", addr, line=None, origin="l2 flush")
+            print(f"Flushed {counter} dirty entries from L2")
+        print(f"DC inclusions: {self.dc.inclusions if self.l2 else 0}")
+        print(f"L2 alloc_on_write_miss: {self.l2.cache.alloc_on_write_miss}")
+        print(f"L2 writebacks_during_run: {self.l2.cache.writebacks_during_run}")
+        print(f"DC write_backs (during run): {self.dc.cache.write_backs}")
+
     def simulate(self, trace):
         """
         Core simulator functionality, simulates the memory hierarchy using the provided trace file.
@@ -77,6 +114,8 @@ class MemoryHierarchySimulator:
             line = AccessLine(address)
             self.top_level.access(operation, int_address, line)
             print(line)
+        self.flush()
+        print(self.memory.by_origin)
         print("\nSimulation statistics\n")
         self.pprint_stats()
 

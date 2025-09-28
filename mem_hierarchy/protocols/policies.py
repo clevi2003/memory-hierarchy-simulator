@@ -58,10 +58,12 @@ class WriteBackWriteAllocate(WritePolicy):
         # write miss, allocate in cache and mark as dirty
         else:
             cache.write_misses += 1
-            evicted = cache.possibly_evict(address)
-            new_entry = CacheEntry(tag, index, address)
+            base = cache._block_base(address)
+            evicted = cache.possibly_evict(base)
+            new_entry = CacheEntry(tag, index, base)
             new_entry.mark_dirty()
             set_dict[tag] = new_entry
+            cache.alloc_on_write_miss += 1
             return AccessResult(cache.name, "W", address, False, tag, index, offset, allocated=True,
                                 evicted_entry=evicted, wrote_back=(evicted and evicted.dirty))
 
@@ -85,5 +87,12 @@ class InclusivePolicy(InclusionPolicy):
         :param address: binary string address that was evicted from the lower cache
         :return: None
         """
-        upper_cache.invalidate(address)
+
+        base = upper_cache._block_base(address)
+        hit = upper_cache.contains(base)
+        was_dirty = False
+        if hit:
+            was_dirty = upper_cache.is_dirty(base)
+            upper_cache.invalidate(base)
+        return hit, was_dirty
 
