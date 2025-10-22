@@ -8,28 +8,30 @@ class WritePolicy(ABC):
     Abstract base class for write policies
     """
     @abstractmethod
-    def on_write(self, cache, address):
+    def on_write(self, cache, address, **kwargs):
         pass
 
 class WriteThroughNoWriteAllocate(WritePolicy):
     """
     Write-through, no write-allocate policy
     """
-    def on_write(self, cache, address):
+    def on_write(self, cache, address, **kwargs):
         """
         Handle a write operation according to the write-through, no write-allocate policy
         :param cache: CacheCore or inherited class
         :param address: binary string address to write to
         :return: AccessResult object with the result of the write operation
         """
-        tag, index, offset = cache.parse_address(address)
+        base = cache._block_base(address)
+        tag, index, offset = cache.parse_address(base)
         cache.writes += 1
         set_dict = cache.sets[index]
 
         # write hit, update most recently used
         if tag in set_dict:
             cache.write_hits += 1
-            cache.get_update_mru(set_dict, tag)
+            #cache.get_update_mru(set_dict, tag)
+            cache.get_update_mru_new(index, tag)
             return AccessResult(cache.name, "W", address, True, tag, index, offset, needs_lower_write=True)
         # write miss, write only to lower level, don't change current cache
         else:
@@ -40,31 +42,33 @@ class WriteBackWriteAllocate(WritePolicy):
     """
     Write-back, write-allocate policy
     """
-    def on_write(self, cache, address):
+    def on_write(self, cache, address, is_writeback=False):
         """
         Handle a write operation according to the write-back, write-allocate policy
         :param cache: CacheCore or inherited class
         :param address: binary string address to write to
         :return: AccessResult object with the result of the write operation
         """
-        tag, index, offset = cache.parse_address(address)
+        base = cache._block_base(address)
+        tag, index, offset = cache.parse_address(base)
         cache.writes += 1
         set_dict = cache.sets[index]
         # write hit, mark as dirty
         if tag in set_dict:
             cache.write_hits += 1
-            cache.get_update_mru(set_dict, tag).mark_dirty()
-            return AccessResult(cache.name, "W", address, True, tag, index, offset)
+            cache.get_update_mru_new(index, tag).mark_dirty()
+            return AccessResult(cache.name, "W", base, True, tag, index, offset)
         # write miss, allocate in cache and mark as dirty
         else:
-            cache.write_misses += 1
-            base = cache._block_base(address)
+            if not is_writeback:
+                cache.write_misses += 1
             evicted = cache.possibly_evict(base)
-            new_entry = CacheEntry(tag, index, base)
+            cache.mru_counter += 1
+            new_entry = CacheEntry(tag, index, base, cache.mru_counter)
             new_entry.mark_dirty()
             set_dict[tag] = new_entry
             cache.alloc_on_write_miss += 1
-            return AccessResult(cache.name, "W", address, False, tag, index, offset, allocated=True,
+            return AccessResult(cache.name, "W", base, False, tag, index, offset, allocated=True,
                                 evicted_entry=evicted, wrote_back=(evicted and evicted.dirty))
 
 

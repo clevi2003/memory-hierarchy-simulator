@@ -1,5 +1,7 @@
 from collections import OrderedDict
 from mem_hierarchy.data_structures.result_structures.access_results import AccessResult
+import copy
+import pprint
 
 class CacheCore:
     """
@@ -35,6 +37,8 @@ class CacheCore:
         self.read_misses = self.write_misses = 0
         self.evictions = self.write_backs = 0
 
+        self.mru_counter = 0
+
     @staticmethod
     def _coerce_addr(address):
         if isinstance(address, int):
@@ -51,24 +55,69 @@ class CacheCore:
         :param address: int
         :return: integer tag, index, and offset
         """
-        base = self._block_base(address)
-        addr = self._coerce_addr(address) & self._phys_mask
-        offset = base & self._offset_mask
-        index = (base >> self.offset_bits) & self._index_mask
-        tag = base >> (self.index_bits + self.offset_bits)
+        offset = address & self._offset_mask
+        index = (address >> self.offset_bits) & self._index_mask
+        tag = address >> (self.index_bits + self.offset_bits)
         return tag, index, offset
 
-    @staticmethod
-    def get_update_mru(set_dict, tag):
+    #@staticmethod
+    def get_update_mru_new(self, index, tag):
         """
         Get the cache entry and update it to be the most recently used
         :param set_dict: set within the cache to update
         :param tag: integer tag of the cache entry to update
         :return: the cache entry
         """
+        set_dict = self.sets[index]
+        entry = set_dict[tag]
+
+        # bump recency
+        self.mru_counter += 1
+        entry.last_used = self.mru_counter
+
+        # keep insertion order consistent with MRU as well
+        set_dict.pop(tag)
+        set_dict[tag] = entry
+
+        return entry
+
+    def get_update_mru(self, index, tag):
+        """
+        Get the cache entry and update it to be the most recently used
+        :param set_dict: set within the cache to update
+        :param tag: integer tag of the cache entry to update
+        :return: the cache entry
+        """
+        set_dict = self.sets[index]
+        old_set_dict = copy.deepcopy(set_dict)
         cache_entry = set_dict.pop(tag)
         set_dict[tag] = cache_entry
+        if len(old_set_dict) > 1 and old_set_dict[tag] != cache_entry:
+            assert old_set_dict != set_dict
         return cache_entry
+
+    def choose_victim(self, index):
+        set_dict = self.sets[index]
+        # LRU with stable tie-break on insertion time
+        victim_tag, victim_entry = min(
+            set_dict.items(),
+            key=lambda kv: (kv[1].last_used, kv[1].inserted_at)
+        )
+        return victim_tag, victim_entry
+
+    def possibly_evict(self, address):
+        """
+        Evicts the least recently used cache entry if the set is full.
+        :param address: binary string address
+        :return: the evicted CacheEntry if eviction occurred, else None
+        """
+        tag, index, _ = self.parse_address(self._block_base(address))
+        set_dict = self.sets[index]
+        if len(set_dict) < self.associativity:
+            return None
+        victim_tag, victim_entry = self.choose_victim(index)
+        set_dict.pop(victim_tag)
+        return victim_entry
 
     def contains(self, address):
         """
@@ -105,8 +154,10 @@ class CacheCore:
         tag, index, offset = self.parse_address(address)
         set_dict = self.sets[index]
         if tag in set_dict:
-            entry = self.get_update_mru(set_dict, tag)
+            #entry = self.get_update_mru(set_dict, tag)
+            entry = set_dict[tag]
             entry.mark_dirty()
+            self.sets[index][tag] = entry
             return True
         return False
 
@@ -118,11 +169,12 @@ class CacheCore:
         :param address: int
         :return: AccessResult object indicating hit or miss and other info
         """
+        address = self._block_base(address)
         tag, index, offset = self.parse_address(address)
         set_dict = self.sets[index]
         if tag in set_dict:
             if update_mru:
-                self.get_update_mru(set_dict, tag)
+                self.get_update_mru_new(index, tag)
             return AccessResult(self.name, operation, address, True, tag, index, offset)
         return AccessResult(self.name, operation, address, False, tag, index, offset,
                             needs_lower_read=operation=="R")
@@ -134,11 +186,22 @@ class CacheCore:
         :return: boolean indicating if an entry was invalidated
         """
         tag, index, offset = self.parse_address(address)
-        set_dict = self.sets[index]
-        if tag in set_dict:
-            set_dict.pop(tag)
+        if tag in self.sets[index]:
+            self.sets[index].pop(tag)
             return True
         return False
+
+    def entries_in_page(self, evicted_entry):
+        """Return a list of CacheEntry objects whose block-base lies in the evicted PPN."""
+        shift = self.phys_bits - self.ppn_bits
+        entries = []
+        for set_dict in self.sets:
+            for tag, entry in set_dict.items():
+                physical_address = self._coerce_addr(entry.address) & self._phys_mask
+                entry_ppn = physical_address >> shift
+                if entry_ppn == evicted_entry.ppn:
+                    entries.append(entry)
+        return entries
 
     def invalidate_page(self, evicted_entry):
         """
@@ -147,6 +210,7 @@ class CacheCore:
         :return: None
         """
         shift = self.phys_bits - self.ppn_bits
+        entries = []
         for set_dict in self.sets:
             tags_to_invalidate = []
             for tag, entry in set_dict.items():
@@ -154,8 +218,10 @@ class CacheCore:
                 entry_ppn = physical_address >> shift
                 if entry_ppn == evicted_entry.ppn:
                     tags_to_invalidate.append(tag)
+                    entries.append(entry)
             for tag in tags_to_invalidate:
                 set_dict.pop(tag)
+        return entries
 
     def get_stats(self):
         """

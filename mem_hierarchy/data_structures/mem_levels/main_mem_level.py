@@ -9,11 +9,12 @@ class MainMemoryLevel(MemoryLevel):
         self.writes = 0
         self.by_origin = defaultdict(lambda x: 0)
 
-    def access(self, operation, address, line, update_line=False, origin="unknown"):
+    def access(self, operation, address, line, update_line=False, is_flush=False, origin="unknown", **kwargs):
         self.by_origin[origin] = self.by_origin.get(origin, 0) + 1
         if operation == "R":
             self.reads += 1
         elif operation == "W":
+            #if not is_flush:
             self.writes += 1
         else:
             raise ValueError(f"Unknown op: {operation}")

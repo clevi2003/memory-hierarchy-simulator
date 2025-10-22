@@ -7,8 +7,15 @@ class DTLBLevel(MemoryLevel):
         if invalidation_bus:
             invalidation_bus.register_listener(self)
 
-    def invalidate_page(self, evicted_entry):
-        self.dtlb_cache.invalidate(evicted_entry)
+    # def invalidate_page(self, evicted_entry):
+    #     self.dtlb_cache.invalidate(evicted_entry)
+
+    def on_page_evicted(self, evicted_entry):
+        vpn = getattr(evicted_entry, "vpn", None)
+        if vpn is None:
+            # Fallback: derive from PPN only if you maintain a reverse map; otherwise bail quietly.
+            return
+        self.dtlb_cache.invalidate_vpn(vpn)
 
     @staticmethod
     def update_line(access_result, line):

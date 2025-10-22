@@ -9,6 +9,7 @@ from mem_hierarchy.data_structures.virtual_mem.page_table import PageTable
 from mem_hierarchy.data_structures.result_structures.access_results import AccessLine
 from mem_hierarchy.protocols.policies import WriteBackWriteAllocate, WriteThroughNoWriteAllocate, InclusivePolicy
 from mem_hierarchy.protocols.invalidation_bus import InvalidationBus
+import json
 
 class MemoryHierarchySimulator:
     """Simulates a memory hierarchy based on the provided configuration."""
@@ -41,9 +42,10 @@ class MemoryHierarchySimulator:
         lower_for_next_level = self.dc
         self.top_level = self.dc
         # setup for page table if applicable
+        self.dtlb = None
+        self.pt = None
         if config.virtual_addresses:
             # setup for DTLB if applicable
-            self.dtlb = None
             if config.dtlb_enabled:
                 self.dtlb = DTLBLevel(DTLB(config), lower_level=None, invalidation_bus=invalidation_bus)
             self.pt = VirtualMemoryLevel(PageTable(config), invalidation_bus, dtlb_level=self.dtlb, lower_level=lower_for_next_level)
@@ -56,50 +58,20 @@ class MemoryHierarchySimulator:
     def align_to_block(address, offset_bits):
         return address & ~((1 << offset_bits) - 1)
 
-    def flush(self):
-        if self.dc:
-            counter = 0
-            sub_counter = 0
-            other_sub_counter = 0
-            for entry in self.dc.cache.iter_dirty_entries():
-                assert entry.address == self.align_to_block(entry.address, self.dc.cache.offset_bits)
-                counter += 1
-                addr = entry.address
-                l2_addr = self.align_to_block(addr, self.l2.cache.offset_bits)
-                if self.l2 and self.l2.cache.contains(l2_addr):  # non-counting probe
-                    self.l2.cache.mark_dirty(l2_addr)  # do not use .access()
-                    other_sub_counter += 1
-                else:
-                    sub_counter += 1
-                    self.l2.cache.back_fill("W", l2_addr, dirty=True)
-                    # self.memory.access("W", l2_addr, line=None)
-            print(f"Flushed {counter} dirty entries from DC")
-            print(f"Of those, {other_sub_counter} were already in L2 and marked dirty")
-            print(f"Of those, {sub_counter} were not in L2 and moved to L2")
-        if self.l2:
-            counter = 0
-            for entry in self.l2.cache.iter_dirty_entries():
-                assert entry.address == self.align_to_block(entry.address, self.l2.cache.offset_bits)
-                counter += 1
-                addr = self.align_to_block(entry.address, self.l2.cache.offset_bits)
-                self.memory.access("W", addr, line=None, origin="l2 flush")
-            print(f"Flushed {counter} dirty entries from L2")
-        print(f"DC inclusions: {self.dc.inclusions if self.l2 else 0}")
-        print(f"L2 alloc_on_write_miss: {self.l2.cache.alloc_on_write_miss}")
-        print(f"L2 writebacks_during_run: {self.l2.cache.writebacks_during_run}")
-        print(f"DC write_backs (during run): {self.dc.cache.write_backs}")
-
-    def simulate(self, trace):
+    def simulate(self, trace, write_to=None, verbose=True):
         """
         Core simulator functionality, simulates the memory hierarchy using the provided trace file.
+        :param write_to: string path to write stats to as json, if None, does not write
         :param trace: trace file path
         :return: None
         """
-        print("Virtual  Virt.  Page TLB    TLB TLB  PT   Phys        DC  DC          L2  L2")
-        print("Address  Page # Off  Tag    Ind Res. Res. Pg # DC Tag Ind Res. L2 Tag Ind Res.")
-        print("-------- ------ ---- ------ --- ---- ---- ---- ------ --- ---- ------ --- ----")
+        if verbose:
+            print("Virtual  Virt.  Page TLB    TLB TLB  PT   Phys        DC  DC          L2  L2")
+            print("Address  Page # Off  Tag    Ind Res. Res. Pg # DC Tag Ind Res. L2 Tag Ind Res.")
+            print("-------- ------ ---- ------ --- ---- ---- ---- ------ --- ---- ------ --- ----")
         for operation, int_address, hex_address in TraceParser(trace, addr_bits=self.config.address_bits):
             address = bin(int_address)[2:].zfill(self.config.address_bits)
+            tag, index, _ = self.l2.cache.parse_address(int_address)
             if len(address) > self.config.address_bits:
                 print(f"Address {hex_address} exceeds the configured address bits {self.config.address_bits}")
                 continue
@@ -113,11 +85,17 @@ class MemoryHierarchySimulator:
             # have line get passed through the hierarchy to collect info
             line = AccessLine(address)
             self.top_level.access(operation, int_address, line)
-            print(line)
-        self.flush()
-        print(self.memory.by_origin)
-        print("\nSimulation statistics\n")
-        self.pprint_stats()
+            if verbose:
+                print(line)
+
+        if verbose:
+            print("\nSimulation statistics\n")
+        stat_dict = self.pprint_stats(verbose=verbose)
+        if write_to is not None:
+            # write stat dict to json
+            with open(write_to, 'w') as f:
+                json.dump(stat_dict, f, indent=4)
+        return stat_dict
 
     def get_stats(self):
         """
@@ -139,37 +117,58 @@ class MemoryHierarchySimulator:
 
         return stats
 
-    def pprint_stats(self):
+    def pprint_stats(self, verbose=True):
         """
         Pretty prints the stats from all levels of the memory hierarchy.
         :return: None
         """
         stats = self.get_stats()
+        stat_dict = {}
         stat_str = ""
         dtlb_stats = stats.get('dtlb', None)
         if dtlb_stats is not None:
             stat_str += "dtlb hits        : " + str(dtlb_stats['hits']) + "\n"
+            stat_dict["dtlb hits"] = dtlb_stats['hits']
             stat_str += "dtlb misses      : " + str(dtlb_stats['misses']) + "\n"
+            stat_dict["dtlb misses"] = dtlb_stats['misses']
             stat_str += "dtlb hit rate    : " + f"{dtlb_stats['hit rate']:.6f}" + "\n\n"
+            stat_dict["dtlb hit rate"] = f"{dtlb_stats['hit rate']:.6f}"
         pt_stats = stats.get('page table', None)
         if pt_stats is not None:
             stat_str += "pt hits          : " + str(pt_stats['hits']) + "\n"
+            stat_dict["pt hits"] = pt_stats['hits']
             stat_str += "pt misses        : " + str(pt_stats['misses']) + "\n"
+            stat_dict["pt misses"] = pt_stats['misses']
             stat_str += "pt hit rate      : " + f"{pt_stats['hit rate']:.6f}" + "\n\n"
+            stat_dict["pt hit rate"] = f"{pt_stats['hit rate']:.6f}"
         dc_stats = stats.get('dc', None)
         stat_str += "dc hits          : " + str(dc_stats['hits']) + "\n"
+        stat_dict["dc hits"] = dc_stats['hits']
         stat_str += "dc misses        : " + str(dc_stats['misses']) + "\n"
+        stat_dict["dc misses"] = dc_stats['misses']
         stat_str += "dc hit rate      : " + f"{dc_stats['hit rate']:.6f}" + "\n\n"
+        stat_dict["dc hit rate"] = f"{dc_stats['hit rate']:.6f}"
         l2_stats = stats.get('l2', None)
         if l2_stats is not None:
             stat_str += "L2 hits         : " + str(l2_stats['hits']) + "\n"
+            stat_dict["l2 hits"] = l2_stats['hits']
             stat_str += "L2 misses       : " + str(l2_stats['misses']) + "\n"
+            stat_dict["l2 misses"] = l2_stats['misses']
             stat_str += "L2 hit rate     : " + f"{l2_stats['hit rate']:.6f}" + "\n\n"
+            stat_dict["l2 hit rate"] = f"{l2_stats['hit rate']:.6f}"
         stat_str += "Total reads      : " + str(stats['reads']) + "\n"
+        stat_dict["total reads"] = stats['reads']
         stat_str += "Total writes     : " + str(stats['writes']) + "\n"
+        stat_dict["total writes"] = stats['writes']
         stat_str += "Ratio of reads   : " + f"{stats['read ratio']:.6f}" + "\n\n"
+        stat_dict["ratio of reads"] = f"{stats['read ratio']:.6f}"
         stat_str += "main memory refs : " + str(stats['main memory']['mem_accesses']) + "\n"
+        stat_dict["main memory refs"] = stats['main memory']['mem_accesses']
         stat_str += "page table refs  : " + str(stats['page table']['accesses']) + "\n" if pt_stats else ""
+        stat_dict["page table refs"] = stats['page table']['accesses'] if pt_stats else ""
         stat_str += "disk refs        : " + str(stats['page table']['disk refs']) + "\n" if pt_stats else ""
-        print(stat_str)
+        stat_dict["disk refs"] = stats['page table']['disk refs'] if pt_stats else ""
+        if verbose:
+            print(stat_str)
+        return stat_dict
 

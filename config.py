@@ -258,6 +258,7 @@ class Config:
             self.bits.vpn_bits = 0
             self.physical_address_bits = safe_log_2(self.pt.n_physical_pages) + safe_log_2(self.pt.page_size)
             self.virtual_address_bits = self.physical_address_bits
+            self.address_bits = self.physical_address_bits
 
         # DTLB bits slice the VPN, not the full 32-bit VA
         if self.dtlb_enabled and self.virtual_addresses:
