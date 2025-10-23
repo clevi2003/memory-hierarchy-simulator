@@ -37,11 +37,14 @@ def parse_args() -> argparse.Namespace:
 def main():
     args = parse_args()
 
+    use_stdin = (args.trace == "-")
+
     # validation
     if not os.path.exists(args.config):
         print(f"error: config file not found: {args.config}", file=sys.stderr)
         sys.exit(2)
-    if not os.path.exists(args.trace):
+
+    if not use_stdin and not os.path.exists(args.trace):
         print(f"error: trace file not found: {args.trace}", file=sys.stderr)
         sys.exit(2)
 
