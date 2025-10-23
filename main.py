@@ -10,13 +10,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "-c", "--config",
-        default="tests/trace.config",
+        default="trace.config",
         help="Path to config file (default: %(default)s)",
     )
     parser.add_argument(
         "-t", "--trace",
-        default="tests/medium_trace.dat",
-        help="Path to trace file (default: %(default)s)",
+        default="-",  # default to stdin, not a hardcoded file
+        help='Trace file path (use "-" or omit to read from stdin; default: "%(default)s")',
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
