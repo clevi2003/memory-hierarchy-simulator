@@ -51,9 +51,9 @@ def main():
     mem_sim_config = Config.from_config_file(args.config)
     if args.verbose:
         print(mem_sim_config)
-
+    trace_path = "/dev/stdin" if use_stdin else args.trace
     simulator = MemoryHierarchySimulator(mem_sim_config)
-    simulator.simulate(args.trace, verbose=args.verbose)
+    simulator.simulate(trace_path, verbose=args.verbose)
 
 
 if __name__ == '__main__':
