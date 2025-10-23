@@ -4,6 +4,7 @@ PY    := python3
 APP   := memhier
 CONFIG:= trace.config
 MAIN  := main.py
+TRACE ?= trace.dat
 
 .PHONY: build run clean
 
@@ -17,7 +18,7 @@ build:
 	@echo "Done. Run with: ./$(APP) < your_trace.dat"
 
 run: build
-	@./$(APP) < trace.dat
+	@./$(APP) < $(TRACE)
 
 clean:
 	@rm -f $(APP)
